@@ -38,11 +38,43 @@ export function AudioIcon({ className }: Props) {
   );
 }
 
-export function SettingsIcon({ className }: Props) {
+/** 라이트 모드 표시 — 원래 SettingsIcon 이던 태양. 이제 테마 토글이 쓴다. */
+export function SunIcon({ className }: Props) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+    </svg>
+  );
+}
+
+/** 다크 모드 표시 */
+export function MoonIcon({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.6 6.6 0 0 0 10.5 10.5z" />
+    </svg>
+  );
+}
+
+/** 관리자 — 슬라이더. 태양과 헷갈리지 않는 모양으로 골랐다. */
+export function AdminIcon({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2" />
+      <circle cx="16" cy="6" r="2" />
+      <circle cx="10" cy="12" r="2" />
+      <circle cx="16" cy="18" r="2" />
+    </svg>
+  );
+}
+
+/** 잠금 — 관리자 비밀번호 화면 */
+export function LockIcon({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
     </svg>
   );
 }

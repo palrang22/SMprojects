@@ -1,9 +1,12 @@
 import { NavLink } from "react-router-dom";
+import { useLogo, useTheme } from "../lib/theme.ts";
 import {
+  AdminIcon,
   AudioIcon,
   HomeIcon,
   ImageIcon,
-  SettingsIcon,
+  MoonIcon,
+  SunIcon,
   VideoIcon,
 } from "./Icons.tsx";
 
@@ -15,9 +18,13 @@ const ITEMS = [
 ];
 
 export function Rail() {
+  const { theme, toggle } = useTheme();
+  const mark = useLogo("/SM_CI_wordmark");
+  const isDark = theme === "dark";
+
   return (
     <aside className="rail">
-      <img className="mark" src="/SM_CI_wordmark_white.svg" alt="SM" />
+      <img className="mark" src={mark} alt="SM" />
 
       {ITEMS.map(({ to, label, Icon, end }) => (
         <NavLink
@@ -36,12 +43,23 @@ export function Rail() {
 
       <NavLink
         to="/settings"
-        title="설정"
-        aria-label="설정"
+        title="관리자"
+        aria-label="관리자"
         className={({ isActive }) => (isActive ? "ritem on" : "ritem")}
       >
-        <SettingsIcon />
+        <AdminIcon />
       </NavLink>
+
+      <button
+        type="button"
+        className="ritem"
+        onClick={toggle}
+        title={isDark ? "라이트 모드로" : "다크 모드로"}
+        aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+        aria-pressed={!isDark}
+      >
+        {isDark ? <SunIcon /> : <MoonIcon />}
+      </button>
 
       <img
         className="gc"

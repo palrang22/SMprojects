@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useLogo } from "../lib/theme.ts";
 import {
   ArrowIcon,
   AudioIcon,
@@ -51,6 +52,8 @@ const STUDIOS: Studio[] = [
 ];
 
 export function Hub() {
+  const mark = useLogo("/SM_CI_wordmark");
+
   return (
     <>
       <section className="hero">
@@ -59,7 +62,7 @@ export function Hub() {
             <span className="dot" /> SM Entertainment · AI Day
           </div>
           <div className="partners">
-            <img className="sm" src="/SM_CI_wordmark_white.svg" alt="SM" />
+            <img className="sm" src={mark} alt="SM" />
             <span className="x">×</span>
             <img
               className="gc"

@@ -1,10 +1,4 @@
 # syntax=docker/dockerfile:1
-#
-# Cloud Run 용 이미지.
-# 멀티스테이지로 나누는 이유: 최종 이미지에 빌드 도구와 devDependencies 를 남기지 않는다.
-#   deps    의존성 설치만 (레이어 캐시가 여기서 가장 잘 듣는다)
-#   builder 프론트(dist) + 서버(dist-server) 빌드
-#   runner  실행에 필요한 것만 복사
 
 # ── deps ────────────────────────────────────────────
 FROM node:20-slim AS deps

@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Rail } from "./components/Rail.tsx";
+import { ThemeProvider } from "./lib/ThemeProvider.tsx";
 import { Hub } from "./routes/Hub.tsx";
 import { LookStudio } from "./routes/LookStudio.tsx";
 import { MotionStudio } from "./routes/MotionStudio.tsx";
@@ -31,8 +32,10 @@ function Shell() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Shell />
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Shell />
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

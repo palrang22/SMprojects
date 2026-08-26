@@ -537,3 +537,93 @@ textarea:focus-visible {
   color: var(--accent);
   text-transform: uppercase;
 }
+
+/* ---------- 관리자 ---------- */
+.studio.admin { --accent: var(--g-green); }
+
+.gate {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 2.4rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: center;
+  max-width: 380px;
+}
+
+.gate-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  margin-bottom: 0.3rem;
+}
+
+.gate-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 1.6;
+}
+
+.gate h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-h);
+}
+
+.gate p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.gate input {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.gate input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.gate-error {
+  color: var(--g-red);
+  font-size: 0.8rem;
+}
+
+/* studio.css 의 .primary 는 .controls 안에만 걸려 있어서 여기선 안 먹는다 */
+.gate button {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  transition: 0.18s ease;
+}
+
+.gate button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.gate button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
