@@ -1,0 +1,289 @@
+/* SM × Google Cloud — AI Day
+ * 원본 시안: docs/design/SM_AI_Day_landing.html
+ * base64 로 박혀 있던 로고는 public/ 의 실제 SVG 참조로 교체했다.
+ */
+:root{
+    --ink:#0a0a0b;          /* studio black */
+    --ink-2:#111114;        /* panel */
+    --ink-3:#17171b;        /* raised */
+    --line:#26262c;         /* hairline */
+    --line-2:#33333b;
+    --fog:#8a8a93;          /* muted text */
+    --fog-2:#b9b9c1;
+    --paper:#f4f4f2;        /* near-white */
+    /* Google Cloud accents — used sparingly, one per module */
+    --g-blue:#4285F4;
+    --g-red:#EA4335;
+    --g-yellow:#FBBC04;
+    --g-green:#34A853;
+    --focus:#8ab4f8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:"Helvetica Neue",Helvetica,"Apple SD Gothic Neo","Pretendard",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+
+  /* ---------- shell ---------- */
+  .shell{display:grid;grid-template-columns:64px 1fr;min-height:100vh}
+
+  /* ---------- left rail ---------- */
+  .rail{
+    background:var(--ink);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;
+    padding:18px 0;gap:6px;position:sticky;top:0;height:100vh;
+  }
+  .rail .mark{width:26px;height:26px;margin-bottom:22px;opacity:.95}
+  .rail .ritem{
+    width:40px;height:40px;border-radius:11px;
+    display:grid;place-items:center;color:var(--fog);
+    cursor:pointer;transition:.18s ease;position:relative;
+  }
+  .rail .ritem svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .rail .ritem:hover{color:var(--paper);background:var(--ink-3)}
+  .rail .ritem.on{color:var(--paper)}
+  .rail .ritem.on::before{
+    content:"";position:absolute;left:-18px;top:50%;transform:translateY(-50%);
+    width:2px;height:20px;background:var(--paper);border-radius:2px;
+  }
+  .rail .spacer{flex:1}
+  .rail .gc{width:26px;height:26px;opacity:.9;margin-top:6px}
+
+  /* ---------- main ---------- */
+  .main{min-height:100vh}
+  /* 허브(랜딩)에서만 히어로 + 패널 2열 분할 */
+  .main-split{display:grid;grid-template-columns:1.02fr 1fr}
+  @media(max-width:1080px){.main-split{grid-template-columns:1fr}}
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative;padding:56px 60px;
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    background:
+      radial-gradient(120% 80% at 20% 0%, #141419 0%, var(--ink) 55%);
+  }
+  .hero::after{ /* faint interlock watermark */
+    content:"";position:absolute;right:-120px;bottom:-90px;width:520px;height:520px;
+    background:url('/SM_CI_combination_vertical_white.svg') center/contain no-repeat;
+    opacity:.045;pointer-events:none;transform:rotate(-6deg);
+  }
+  .hero-top{display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .eyebrow{
+    display:flex;align-items:center;gap:12px;
+    font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--fog);
+  }
+  .eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--g-green);box-shadow:0 0 0 3px rgba(52,168,83,.18)}
+  .partners{display:flex;align-items:center;gap:13px}
+  .partners img.sm{height:22px;opacity:.92}
+  .partners .x{color:var(--fog);font-size:13px;font-weight:300}
+  .partners img.gc{height:20px;opacity:.92}
+
+  .hero-body{margin:auto 0}
+  .kicker{
+    font-size:12px;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--fog-2);margin:0 0 20px 2px;
+  }
+  h1{
+    font-size:clamp(40px,5.4vw,76px);line-height:.98;margin:0;
+    font-weight:800;letter-spacing:-.02em;
+  }
+  h1 .thin{font-weight:300;letter-spacing:-.01em}
+  h1 .out{
+    -webkit-text-stroke:1.3px var(--paper);color:transparent;
+  }
+  .lede{
+    margin:26px 0 0 3px;max-width:34ch;color:var(--fog-2);
+    font-size:15px;line-height:1.6;font-weight:300;
+  }
+  .meta{
+    margin-top:38px;display:flex;gap:28px;
+    font-size:12px;color:var(--fog);letter-spacing:.04em;
+  }
+  .meta b{display:block;color:var(--paper);font-size:13px;font-weight:600;letter-spacing:0;margin-bottom:3px}
+
+  .footline{
+    margin-top:auto;padding-top:34px;display:flex;align-items:center;gap:10px;
+    font-size:11px;color:var(--fog);letter-spacing:.14em;text-transform:uppercase;
+  }
+  .footline img{height:16px;opacity:.75}
+
+  /* ---------- module panel ---------- */
+  .panel{padding:52px 52px 40px;display:flex;flex-direction:column}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+  .panel-head .t{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--fog)}
+  .panel-head .c{font-size:12px;color:var(--fog);font-variant-numeric:tabular-nums}
+  .panel-sub{color:var(--fog-2);font-size:13px;font-weight:300;margin:0 0 30px;max-width:40ch;line-height:1.55}
+
+  .modules{display:flex;flex-direction:column;gap:16px}
+
+  .mod{
+    position:relative;display:flex;align-items:center;gap:22px;
+    padding:26px 28px;border:1px solid var(--line);border-radius:18px;
+    background:linear-gradient(180deg,var(--ink-2),var(--ink-2));
+    cursor:pointer;overflow:hidden;
+    transition:transform .28s cubic-bezier(.2,.7,.2,1),border-color .28s,background .28s;
+  }
+  .mod::before{ /* accent wash */
+    content:"";position:absolute;inset:0;opacity:0;transition:opacity .3s;
+    background:radial-gradient(80% 120% at 100% 0%, var(--accent) 0%, transparent 60%);
+  }
+  .mod::after{ /* left accent bar */
+    content:"";position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent);
+    transition:width .28s cubic-bezier(.2,.7,.2,1);
+  }
+  .mod:hover{transform:translateY(-3px);border-color:var(--line-2);background:var(--ink-3)}
+  .mod:hover::before{opacity:.16}
+  .mod:hover::after{width:4px}
+  .mod:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+  .mod .glyph{
+    width:56px;height:56px;flex:0 0 56px;border-radius:15px;display:grid;place-items:center;
+    border:1px solid var(--line-2);background:#0c0c0f;position:relative;z-index:1;
+    transition:.28s;
+  }
+  .mod:hover .glyph{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent)}
+  .mod .glyph svg{width:27px;height:27px;stroke:var(--accent);fill:none;stroke-width:1.5}
+  .mod .txt{position:relative;z-index:1;flex:1}
+  .mod .txt .en{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+  .mod .txt h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em}
+  .mod .txt p{margin:6px 0 0;font-size:13px;color:var(--fog-2);font-weight:300;line-height:1.5;max-width:42ch}
+  .mod .txt .api{
+    display:inline-flex;align-items:center;gap:7px;margin-top:12px;
+    font-size:11px;color:var(--fog);letter-spacing:.03em;
+  }
+  .mod .txt .api img{height:13px;opacity:.7}
+  .mod .go{
+    position:relative;z-index:1;width:44px;height:44px;flex:0 0 44px;border-radius:50%;
+    border:1px solid var(--line-2);display:grid;place-items:center;color:var(--fog-2);
+    transition:.28s;
+  }
+  .mod .go svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .mod:hover .go{background:var(--accent);border-color:var(--accent);color:#0a0a0b;transform:translateX(3px)}
+
+  .mod.video{--accent:var(--g-red)}
+  .mod.image{--accent:var(--g-blue)}
+  .mod.audio{--accent:var(--g-yellow)}
+
+  .panel-foot{
+    margin-top:26px;padding-top:18px;border-top:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:11px;color:var(--fog);letter-spacing:.06em;
+  }
+  .panel-foot .pill{display:inline-flex;align-items:center;gap:7px;
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+  .panel-foot .pill .d{width:6px;height:6px;border-radius:50%;background:var(--g-green)}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(14px);animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.19s}
+  .d4{animation-delay:.26s}.d5{animation-delay:.33s}.d6{animation-delay:.40s}
+  @media(prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}
+    .mod,.mod .go,.mod::after{transition:none}}
+
+  @media(max-width:1080px){
+    .hero{border-right:none;border-bottom:1px solid var(--line);padding:40px 30px 46px}
+    .panel{padding:40px 30px}
+    .hero::after{width:360px;right:-90px;bottom:-70px}
+  }
+  @media(max-width:620px){
+    .shell{grid-template-columns:52px 1fr}
+    .rail{padding:14px 0}
+    .hero-top{flex-direction:column;align-items:flex-start;gap:16px}
+    .hero{padding:34px 22px 40px}
+    .panel{padding:34px 22px}
+    h1{font-size:clamp(38px,13vw,60px)}
+    .lede{font-size:14px}
+    .meta{flex-wrap:wrap;gap:18px 26px}
+    .mod{padding:20px 18px;gap:16px;align-items:flex-start}
+    .mod .glyph{width:46px;height:46px;flex-basis:46px}
+    .mod .glyph svg{width:22px;height:22px}
+    .mod .txt h3{font-size:19px}
+    .mod .txt p{font-size:12.5px}
+    .mod .go{width:38px;height:38px;flex-basis:38px;align-self:center}
+    .panel-foot{flex-direction:column;gap:12px;align-items:flex-start}
+  }
+
+/* 스타터 템플릿의 #root 고정폭·가운데정렬을 이 앱 레이아웃용으로 되돌린다 */
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  text-align: left;
+  border-inline: none;
+  display: block;
+}
+
+/* ---------- 준비 중 스튜디오 자리표시자 ---------- */
+.soon {
+  --accent: var(--g-blue);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--ink-2);
+  padding: 44px 40px;
+  max-width: 560px;
+}
+.soon.video { --accent: var(--g-red) }
+.soon.image { --accent: var(--g-blue) }
+.soon.audio { --accent: var(--g-yellow) }
+
+.soon h2 {
+  margin: 0 0 12px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+}
+.soon > p {
+  margin: 0 0 18px;
+  color: var(--fog-2);
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+.soon .api {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--fog);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+.soon .api img { width: 13px; height: 13px }
+
+.soon-note {
+  margin: 26px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fog);
+}
+.soon-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--fog-2);
+  transition: color 0.2s;
+}
+.soon-back:hover { color: var(--paper) }
+.soon-back svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  transform: rotate(180deg);
+}

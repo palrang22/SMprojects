@@ -1,0 +1,539 @@
+/* 스튜디오 3종의 공통 셸.
+ * hub.css 가 :root 에 깔아둔 디자인 토큰으로 재매핑해서 시안과 톤을 맞춘다.
+ * 강조색은 시안의 .mod.video / .image / .audio 와 같은 규칙 — 모듈당 하나씩.
+ */
+.studio {
+  --text: var(--fog-2);
+  --text-h: var(--paper);
+  --bg: var(--ink-2);
+  --border: var(--line);
+  --code-bg: var(--ink-3);
+  --social-bg: var(--ink-2);
+  --accent-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.studio.video { --accent: var(--g-red); }
+.studio.image { --accent: var(--g-blue); }
+.studio.audio { --accent: var(--g-yellow); }
+
+/* 스타터 템플릿에 전역 box-sizing 리셋이 없어서 이 페이지 범위에만 건다 */
+.studio,
+.studio *,
+.studio *::before,
+.studio *::after {
+  box-sizing: border-box;
+}
+
+.studio {
+  max-width: 860px;
+  margin: 0;
+  padding: 52px 52px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.studio-header .panel-head {
+  margin-bottom: 14px;
+}
+
+.studio-header h1 {
+  color: var(--accent);
+  font-size: 1.9rem;
+  line-height: 1.2;
+  margin: 0 0 0.4rem;
+}
+
+.studio-header p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+code {
+  font: 0.85em var(--mono);
+  background: var(--code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+}
+
+/* ── 배너 ───────────────────────────────────────── */
+.banner {
+  position: relative;
+  padding: 0.9rem 2.4rem 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-line; /* 에러 메시지의 힌트를 줄바꿈해서 보여준다 */
+}
+
+.banner strong {
+  color: var(--text-h);
+}
+
+.banner-warn {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.banner-error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.banner-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* ── 결과 타임라인 ──────────────────────────────── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.turn {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--social-bg);
+}
+
+.turn-meta {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  align-items: baseline;
+}
+
+.turn-meta p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-h);
+}
+
+.turn-index {
+  font: 0.75rem var(--mono);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.turn-video {
+  display: block;
+  width: 100%;
+  max-height: 460px;
+  background: #000;
+}
+
+.turn-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+}
+
+.turn-actions a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.turn-actions code {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 입력부 ─────────────────────────────────────── */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-h);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0.75rem;
+}
+
+textarea:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.examples button {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.examples button:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.attachments {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.attachment {
+  position: relative;
+  width: 68px;
+  height: 68px;
+}
+
+.attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.attachment button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.controls select {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.duration input {
+  width: 90px;
+  accent-color: var(--accent);
+}
+
+.cost {
+  font: 0.78rem var(--mono);
+  opacity: 0.7;
+  margin-left: auto;
+}
+
+.controls button {
+  font: inherit;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.controls .ghost {
+  background: none;
+  color: inherit;
+}
+
+.controls .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── 진행 표시 ──────────────────────────────────── */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.elapsed {
+  font: 0.78rem var(--mono);
+  color: var(--accent);
+}
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--accent-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.5s;
+  }
+}
+
+/* ---------- 02 Look Studio ---------- */
+.slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .slots {
+    grid-template-columns: 1fr;
+  }
+}
+
+.slot {
+  position: relative;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--code-bg);
+  aspect-ratio: 3 / 4;
+  max-height: 300px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.slot.filled {
+  border-style: solid;
+  border-color: var(--accent-border);
+}
+
+.slot-label {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 1;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  background: color-mix(in srgb, var(--ink) 70%, transparent);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slot-pick {
+  width: 100%;
+  height: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  transition: 0.18s ease;
+}
+
+.slot-pick:hover:not(:disabled) {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.slot-pick .plus {
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.slot-clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--ink) 80%, transparent);
+  color: var(--paper);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.result {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.result img {
+  width: 100%;
+  display: block;
+}
+
+.result .turn-actions {
+  padding: 0.6rem 0.9rem;
+}
+
+/* ---------- 03 Voice Studio ---------- */
+.mic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 2rem 0 1.4rem;
+}
+
+.mic-button {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.mic-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.mic-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 연결되어 있는 동안만 맥동한다 */
+.mic.live .mic-button {
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-bg); }
+  50% { box-shadow: 0 0 0 14px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic.live .mic-button { animation: none; }
+}
+
+.mic-state {
+  font-size: 0.88rem;
+  color: var(--text-h);
+}
+
+.hint-note {
+  font-size: 0.76rem;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.transcript {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.transcript .line {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.transcript .line.model {
+  color: var(--text-h);
+}
+
+.transcript .who {
+  display: inline-block;
+  min-width: 3.6rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-transform: uppercase;
+}

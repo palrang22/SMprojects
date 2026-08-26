@@ -5,19 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && pnpm build:server",
+    "build:server": "tsc -p tsconfig.server.json",
+    "start": "node dist-server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.0.1",
+    "@google/genai": "^2.19.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.0",
     "eslint": "^10.9.0",
     "eslint-plugin-react-hooks": "^7.1.1",
