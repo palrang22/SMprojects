@@ -171,12 +171,11 @@ export function MotionStudio() {
       <header className="studio-header">
         <div className="panel-head">
           <span className="t">01 — Video</span>
-          <span className="c">Gemini Omni</span>
+          <span className="c">Model — gemini-omni-flash-preview</span>
         </div>
         <h1>Motion Studio</h1>
         <p>
-          텍스트나 사진을 넣으면 움직이는 영상이 됩니다.{' '}
-          <code>gemini-omni-flash-preview</code>
+          텍스트나 사진을 넣고 10초 이내의 영상을 만들어보세요
         </p>
       </header>
 

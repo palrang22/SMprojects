@@ -1,6 +1,6 @@
 # PLAN.md — SM AI Day 부스
 
-> 최종 갱신: 2026-08-26 밤
+> 최종 갱신: 2026-08-27 (프로젝트 `kktae-demo` 이전 + IAM 권한 대기)
 > **마감: 2026-08-27 (목) 오전 — 3개 스튜디오 + Cloud Run 배포 + IAP**
 > (부스 행사는 2026-09-14 (월). 내일 오전은 그 전 중간 마감이다.)
 
@@ -106,15 +106,30 @@ SDK 타입만 믿지 않고 **퍼블리셔 모델 메타데이터를 직접 조�
 - [ ] `/api/live` WS 를 프로덕션 서버에서 미검증 (연결하면 과금되는 세션이 열린다).
       dev 에서 동작한 것과 같은 `attachLiveServer` 이지만 마운트 지점이 다르다
 
-## S4 — 콘솔 + 배포 (내일 오전, 사용자)
+## S4 — 콘솔 + 배포 (사용자)
 
 **나는 GCP 리소스를 만들지 않는다. 아래는 사용자가 직접.**
 
-1. **API 활성화** — Cloud Run Admin, Artifact Registry, Cloud Build, **Identity-Aware Proxy**
+> ⚠️ **2026-08-27 프로젝트 변경**: `gcp-a-presales-ge-20260521` → **`kktae-demo`**로 이전.
+> `kktae-demo`는 전용 프로젝트가 아니라 **선배의 기존 프로젝트** (다른 용도 IAM 바인딩
+> `cloudbuild-connection-setup`, `Create Studio Asset Metadata DB` 등이 이미 존재 확인됨).
+> 우리가 만든 리소스만 건드릴 것 (`CLAUDE.md` 참고).
+>
+> **현재 막힌 지점**: 사용자 계정(`kseungh@mz.co.kr`)이 `kktae-demo`에서 **Editor 권한뿐**이라
+> `setIamPolicy`가 거부됨 (`add-iam-policy-binding` 실패). 선배가 바빠서 **관리자 권한을
+> 나중에 부여하기로 함** — 그때까지 아래 2번(IAM 바인딩)은 대기. 서비스 계정 생성 자체는
+> 완료됨 (`smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com`).
+> 대기 중에도 로컬 `pnpm dev`는 가능 — 로컬은 서비스 계정이 아니라 사용자 ADC로 호출하고
+> Editor 권한이면 Vertex AI 호출 자체는 막히지 않는다.
+
+1. **API 활성화** — Cloud Run Admin, Artifact Registry, Cloud Build, **Identity-Aware Proxy** ✅ 완료
 2. **서비스 계정** 생성 → Cloud Run 에 attach. 키 파일 만들지 말 것 (ADC)
-   - `roles/aiplatform.user`
-   - 버킷 `smprojects-omni-output-805888175648` 에 `roles/storage.objectAdmin`
-3. **OAuth 동의 화면** — 내부(Internal). IAP 켜기의 선행 조건
+   - [x] 생성 완료: `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com`
+   - [ ] `roles/aiplatform.user` ← **관리자 권한 받으면 재시도** (`--condition=None` 붙일 것,
+         프로젝트에 조건부 바인딩이 있어서 안 붙이면 대화형 프롬프트 뜸)
+   - [ ] 버킷 `smproject-sh` 에 `roles/storage.objectAdmin` ← 마찬가지로 대기
+3. **OAuth 동의 화면** — 내부(Internal). IAP 켜기의 선행 조건.
+   ⚠️ 이것도 Editor로 막힐 수 있음 — 관리자 권한 받을 때 같이 확인
 4. 리전: Cloud Run 은 `asia-northeast3` (서울).
    ※ Vertex 호출 리전(`global`)과 무관하다. 헷갈리지 말 것
 5. **배포**: `gcloud run deploy --source . --min-instances=1 --max-instances=1`
@@ -184,8 +199,8 @@ Cloud Run 파일시스템은 tmpfs(메모리)다. 지금처럼 GCS → 로컬 �
 |---|---|
 | 배포 | Cloud Run + IAP 직접 연결 (`domain:mz.co.kr`) |
 | 인증 | Vertex AI + ADC. 앱 자체 로그인은 만들지 않는다 |
-| 프로젝트 | `gcp-a-presales-ge-20260521` (공용 — 남의 리소스 건드리지 말 것) |
-| 저장소 | `gs://smprojects-omni-output-805888175648/output` (30일 자동 삭제) |
+| 프로젝트 | `kktae-demo` (2026-08-27 변경 — 이전 `gcp-a-presales-ge-20260521`에서 이전) |
+| 저장소 | `gs://smproject-sh/output` (30일 자동 삭제 — 새 버킷, lifecycle 설정 재확인 필요) |
 | Vertex 리전 | `global` (`us-central1` 등 단일 리전은 Omni Flash 가 거부) |
 
 ## 함정 기록 (같은 곳에 두 번 빠지지 않기)

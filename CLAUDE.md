@@ -36,17 +36,21 @@ pnpm lint     # eslint
 ## GCP 설정 (이미 되어 있음 — 다시 만들지 말 것)
 
 ```
-프로젝트  gcp-a-presales-ge-20260521   (회사 공용 presales 프로젝트, 사용자가 owner)
+프로젝트  kktae-demo                   (2026-08-27 프로젝트 변경 — 이전 gcp-a-presales-ge-20260521 아님)
 계정      kseungh@mz.co.kr             (회사 계정. 개인 Gmail 아님)
 인증      Vertex AI + ADC              (API 키 아님)
-리전      global
-버킷      gs://smprojects-omni-output-805888175648/output
+리전      global                       (Vertex 호출 리전. Cloud Run 배포 리전(asia-northeast3)과 다름)
+버킷      gs://smproject-sh/output
 ```
 
-- 인증은 `gcloud auth application-default login` 으로 이미 잡혀 있다.
-- 버킷은 이 프로젝트 전용으로 새로 만든 것. **30일 자동 삭제** 정책이 걸려 있다.
-- 같은 프로젝트에 다른 버킷들(`coway-*`, `gcf-v2-*`, `run-sources-*`)이 있는데
-  **전부 다른 사람 작업물이다. 절대 건드리지 말 것.**
+- 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project kktae-demo` 로 이미 잡혀 있다.
+- 버킷은 이 프로젝트 안에 새로 만든 것. **30일 자동 삭제 정책을 걸어야 한다** (아직 미확인).
+- ⚠️ **`kktae-demo`는 전용 프로젝트가 아니라 선배의 기존 프로젝트다.** 이전 프로젝트
+  (`gcp-a-presales-ge-20260521`) 때와 같은 원칙 적용: **우리가 만든 리소스(서비스 계정
+  `smprojects-*`, 버킷 `smproject-sh`)만 건드리고, 이미 있던 다른 리소스는 절대 만지지 말 것.**
+  IAM 정책 조회(`add-iam-policy-binding` 실행 시 뜬 기존 조건부 바인딩 등)로 다른 용도
+  (`cloudbuild-connection-setup`, `Create Studio Asset Metadata DB` 등)가 이미 돌고 있는 게
+  확인됨. 예산·쿼터도 선배 프로젝트 계정으로 잡히니 비용 지출 전 확인 원칙은 그대로 유지.
 
 ## 접근 제어 — IAP
 

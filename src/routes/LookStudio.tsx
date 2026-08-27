@@ -153,11 +153,11 @@ export function LookStudio() {
       <header className="studio-header">
         <div className="panel-head">
           <span className="t">02 — Image</span>
-          <span className="c">Virtual Try-On</span>
+          <span className="c">Model — virtual-try-on-001</span>
         </div>
         <h1>Look Studio</h1>
         <p>
-          인물 사진에 원하는 의상을 입혀봅니다. <code>virtual-try-on-001</code>
+          인물 사진을 넣고 원하는 의상을 입혀보세요
         </p>
       </header>
 
@@ -199,7 +199,7 @@ export function LookStudio() {
         <div className="slots">
           <Slot
             label="인물"
-            hint="사진 올리기"
+            hint="인물 사진 올리기"
             value={person}
             onPick={(f) => void pick(f, setPerson)}
             onClear={() => setPerson(null)}
@@ -207,7 +207,7 @@ export function LookStudio() {
           />
           <Slot
             label="의상"
-            hint="의상 올리기"
+            hint="의상 사진 올리기"
             value={product}
             onPick={(f) => void pick(f, setProduct)}
             onClear={() => setProduct(null)}
@@ -216,7 +216,7 @@ export function LookStudio() {
         </div>
 
         <div className="controls">
-          <span className="cost">단가 확인 전 — 호출당 과금됩니다</span>
+          <span className="cost">단가 확인 전</span>
           <button
             type="button"
             className="primary"

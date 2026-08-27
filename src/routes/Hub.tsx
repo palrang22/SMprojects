@@ -44,7 +44,7 @@ const STUDIOS: Studio[] = [
     kind: "audio",
     en: "03 — Audio",
     title: "Voice Studio",
-    desc: "말을 걸면 대답합니다. 실시간 음성으로 대화하는 인터랙티브 사운드 경험.",
+    desc: "AI에게 말을 걸어보세요. 실시간 음성으로 대화하는 인터랙티브 사운드 경험.",
     api: "Gemini Live · Realtime",
     Icon: AudioIcon,
     delay: "d5",

@@ -144,10 +144,10 @@ export function VoiceStudio() {
       <header className="studio-header">
         <div className="panel-head">
           <span className="t">03 — Audio</span>
-          <span className="c">Gemini Live</span>
+          <span className="c">Model — gemini-live-2.5-flash-native-audio</span>
         </div>
         <h1>Voice Studio</h1>
-        <p>말을 걸면 대답합니다. 실시간 음성 대화.</p>
+        <p>AI에게 말을 걸고 실시간으로 대화해보세요</p>
       </header>
 
       {health && !health.ready && (
