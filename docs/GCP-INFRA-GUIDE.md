@@ -215,6 +215,37 @@ GCP 인증과 **"우리 앱의 사용자 인증"은 완전히 다른 층위**입
 - 간단한 비밀번호 게이트 + **레이트 리밋**
 - 사용자당/전체 일일 호출 상한을 앱 레벨에서 카운트
 
+#### 2.7.1 Cloud Run 직결 IAP (로드밸런서 불필요) — 실측 (2026-08-27)
+
+Cloud Run은 로드밸런서 없이 서비스에 IAP를 직접 붙일 수 있다 (콘솔 → Cloud Run 서비스 →
+Security 탭 → IAP 토글). 배포는 `--no-allow-unauthenticated`로 하고, IAP가 자동으로
+자기 서비스 에이전트에 Cloud Run Invoker 권한을 붙여준다.
+
+**JWT 검증 audience 포맷이 로드밸런서 방식과 다르다** — 이걸로 한 번 헤맨다:
+
+```
+로드밸런서 뒤   /projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID
+Cloud Run 직결  /projects/PROJECT_NUMBER/locations/REGION/services/SERVICE_NAME
+```
+
+검증 코드는 `google-auth-library`(무겁고, 이미 SDK의 전이 의존성이라 pnpm 엄격 레이아웃에서
+직접 못 씀 — `ws`와 같은 함정) 대신 `jose`로 가볍게 처리 가능:
+
+```ts
+const JWKS = createRemoteJWKSet(new URL('https://www.gstatic.com/iap/verify/public_key-jwk'))
+const { payload } = await jwtVerify(token, JWKS, {
+  issuer: 'https://cloud.google.com/iap',
+  audience: process.env.IAP_AUDIENCE, // 위 포맷
+})
+```
+
+`X-Goog-IAP-JWT-Assertion` 헤더만 서명이 있다. `X-Goog-Authenticated-User-Email` /
+`-User-Id`는 스푸핑 가능하니 인가 판단에 쓰지 말 것.
+
+⚠️ **WebSocket 업그레이드 요청에는 IAP가 JWT 헤더를 안 붙이는 경우가 보고돼 있다**
+(Google Issue Tracker #238496778). WS 경로를 이 헤더로 fail-closed 시키면 정상 사용자도
+막힐 수 있으니, 배포 후 실제로 헤더가 오는지 먼저 확인하고 나서 강제 검증 여부를 정할 것.
+
 ---
 
 ## 3. 환경변수 레이아웃

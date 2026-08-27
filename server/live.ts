@@ -4,6 +4,7 @@ import { Modality, type LiveServerMessage, type Session } from '@google/genai'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
+import { getIapIdentity } from './iap.ts'
 
 /**
  * 03 Voice Studio — Gemini Live 프록시.
@@ -157,6 +158,12 @@ export function attachLiveServer(
       socket.destroy()
       return
     }
+
+    // 로깅용 — 차단 안 함. IAP 가 WS 업그레이드 요청에 JWT 헤더를 안 붙이는 알려진 버그가
+    // 있어서(Google Issue Tracker #238496778) 여기서 막으면 정상 사용자도 끊길 수 있다.
+    void getIapIdentity(req.headers).then((identity) => {
+      console.log(`[iap] WS ${LIVE_PATH} ← ${identity?.email ?? '(미검증)'}`)
+    })
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       void handleConnection(config, ws)

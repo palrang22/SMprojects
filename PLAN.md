@@ -97,6 +97,10 @@ SDK 타입만 믿지 않고 **퍼블리셔 모델 메타데이터를 직접 조�
 - [x] `Dockerfile` (멀티스테이지) + `.dockerignore`
 - [x] `pnpm start` / `pnpm build:server` 스크립트
 - [x] **Vite 없이 컴파일된 서버로 전 라우트 검증** (포트 8099, 실제 응답 확인)
+- [x] `server/iap.ts` — IAP JWT(`X-Goog-IAP-JWT-Assertion`) 서명 검증 유틸 (`jose`).
+      `IAP_AUDIENCE` 없으면 no-op(로컬). 지금은 라우트 차단 없이 로깅만 — 실제 인가 판단은
+      킬스위치/레이트리밋 붙일 때(S5). audience 값은 배포 후 Cloud Run 서비스명·프로젝트
+      번호가 확정돼야 나온다 (`docs/GCP-INFRA-GUIDE.md` §2.7.1)
 - [ ] ⚠️ **컨테이너 빌드는 미검증** — 로컬에 Docker 가 없다.
       Dockerfile 자체는 내일 Cloud Build 에서 처음 돌아간다
 - [ ] `/api/live` WS 를 프로덕션 서버에서 미검증 (연결하면 과금되는 세션이 열린다).
@@ -116,7 +120,8 @@ SDK 타입만 믿지 않고 **퍼블리셔 모델 메타데이터를 직접 조�
 5. **배포**: `gcloud run deploy --source . --min-instances=1 --max-instances=1`
    (인스턴스 1개 고정 — 인메모리 잡 스토어를 그대로 쓰기 위한 조건)
 6. **IAP 켜기 + `domain:mz.co.kr` 허용**
-7. JWT(`X-Goog-IAP-JWT-Assertion`) 서명 검증 ← 코드, 배포 후.
+7. ~~JWT(`X-Goog-IAP-JWT-Assertion`) 서명 검증 ← 코드, 배포 후~~
+   → **코드는 준비됨** (`server/iap.ts`). 배포 후 `IAP_AUDIENCE` 값만 채워 넣으면 된다.
    앞의 두 헤더는 스푸핑 가능하다
 
 ### 배포 시 같이 처리 — 영상 전달 경로

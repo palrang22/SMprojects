@@ -81,7 +81,7 @@ export function Hub() {
           </h1>
           <p className="lede reveal d3">
             Google Cloud의 생성형 미디어 모델로 영상·이미지·사운드를 직접
-            만들어보세요. 세 개의 스튜디오, 하나의 무대.
+            만들어보세요.
           </p>
           <div className="meta reveal d4">
             <div>
@@ -109,8 +109,7 @@ export function Hub() {
           <span className="c">03 / 03</span>
         </div>
         <p className="panel-sub reveal d2">
-          체험할 스튜디오를 선택하세요. 각 스튜디오는 하나의 Gemini 모델로
-          구동됩니다.
+          체험할 스튜디오를 선택하세요.
         </p>
 
         <div className="modules">

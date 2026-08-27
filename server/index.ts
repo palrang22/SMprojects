@@ -4,6 +4,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import path from 'node:path'
 import { createApiMiddleware } from './api.ts'
 import { describeConfig, resolveConfig } from './config.ts'
+import { getIapIdentity } from './iap.ts'
 import { attachLiveServer } from './live.ts'
 
 /**
@@ -94,6 +95,14 @@ function main(): void {
 
   const server = createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
+
+    // IAP 신원 로그 (차단 없음 — IAP 가 이미 네트워크 단에서 mz.co.kr 외 트래픽을 막는다).
+    // 지금은 로깅용. 킬스위치/레이트리밋을 붙일 때 이 신원으로 인가 판단을 하게 된다.
+    if (pathname !== '/health') {
+      void getIapIdentity(req.headers).then((identity) => {
+        console.log(`[iap] ${req.method} ${pathname} ← ${identity?.email ?? '(미검증)'}`)
+      })
+    }
 
     // Cloud Run 헬스체크. HEAD 도 받아야 한다
     if (pathname === '/health') {
