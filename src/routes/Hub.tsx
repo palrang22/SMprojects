@@ -59,7 +59,7 @@ export function Hub() {
       <section className="hero">
         <div className="hero-top reveal d1">
           <div className="eyebrow">
-            <span className="dot" /> SM Entertainment · AI Day
+            SM Entertainment · AI Day
           </div>
           <div className="partners">
             <img className="sm" src={mark} alt="SM" />

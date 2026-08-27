@@ -8,8 +8,8 @@
  * 색과 타이포의 단일 소스는 src/styles/hub.css 의 :root 다. 여기에 색을 두지 말 것.
  */
 :root {
-  --sans: "Helvetica Neue", Helvetica, "Apple SD Gothic Neo", Pretendard, Arial,
-    sans-serif;
+  --sans: "Pretendard Variable", "Pretendard", "Helvetica Neue", Helvetica,
+    "Apple SD Gothic Neo", Arial, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;

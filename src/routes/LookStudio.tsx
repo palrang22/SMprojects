@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DownloadQr } from "../components/DownloadQr.tsx";
 import { readAsAttachment, type Attachment } from "../lib/image.ts";
 import "../styles/studio.css";
 
@@ -8,7 +9,7 @@ type Health = {
   detail: string;
 };
 
-type ResultImage = { data: string; mimeType: string };
+type ResultImage = { data: string; mimeType: string; downloadUrl?: string };
 
 const dataUrl = (img: ResultImage) => `data:${img.mimeType};base64,${img.data}`;
 
@@ -189,6 +190,7 @@ export function LookStudio() {
                 <a href={dataUrl(img)} download={`look-${i + 1}.png`}>
                   ⬇ 다운로드
                 </a>
+                <DownloadQr url={img.downloadUrl} />
               </div>
             </article>
           ))}

@@ -16,6 +16,8 @@ export type Job = {
   createdAt: number
   completedAt?: number
   videoUrl?: string
+  /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패/미배포 환경이면 없음. */
+  downloadUrl?: string
   interactionId?: string
   error?: string
 }
@@ -157,6 +159,7 @@ function startJob(config: OmniConfig, opts: GenerateOptions, outDir: string): Jo
       job.status = 'completed'
       job.stage = '완료'
       job.videoUrl = `/output/${result.fileName}`
+      job.downloadUrl = result.downloadUrl
       job.interactionId = result.interactionId
     } catch (err) {
       job.status = 'error'

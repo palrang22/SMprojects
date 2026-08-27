@@ -1,9 +1,9 @@
 import type { GoogleGenAI } from '@google/genai'
-import { Storage } from '@google-cloud/storage'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
+import { createSignedUrl, downloadFromGcs } from './gcs.ts'
 
 export const MODEL_ID = 'gemini-omni-flash-preview'
 
@@ -21,6 +21,8 @@ export type GenerateOptions = {
 export type GenerateResult = {
   interactionId: string
   fileName: string
+  /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패 시 없음. */
+  downloadUrl?: string
 }
 
 /** 진행 단계를 호출자(잡 스토어)에게 알려주는 콜백 */
@@ -70,17 +72,6 @@ async function waitForActive(
     await sleep(delay + Math.random() * 1000)
     delay = Math.min(delay * POLL_FACTOR, POLL_MAX_MS)
   }
-}
-
-/** gs://bucket/path 를 로컬 파일로 내려받는다 (인증은 ADC 가 처리). */
-async function downloadFromGcs(gsUri: string, project: string, filePath: string): Promise<void> {
-  const match = /^gs:\/\/([^/]+)\/(.+)$/.exec(gsUri)
-  if (!match) throw new Error(`GCS URI 를 해석하지 못했습니다: ${gsUri}`)
-
-  const [, bucket, object] = match
-  await new Storage({ projectId: project }).bucket(bucket).file(object).download({
-    destination: filePath,
-  })
 }
 
 export async function generateVideo(
@@ -137,14 +128,20 @@ export async function generateVideo(
   const fileName = `${Date.now()}-${interaction.id}.mp4`
   const filePath = path.join(outDir, fileName)
 
+  let downloadUrl: string | undefined
+
   if (video.data) {
     // inline 응답 — base64 를 그대로 파일로 떨군다
     onStage?.('영상 저장 중')
     await writeFile(filePath, Buffer.from(video.data, 'base64'))
   } else if (video.uri?.startsWith('gs://')) {
     // Vertex — 결과가 내 GCS 버킷에 쓰여 있다
+    const project = config.mode === 'vertex' ? config.project : ''
     onStage?.('GCS 에서 내려받는 중')
-    await downloadFromGcs(video.uri, config.mode === 'vertex' ? config.project : '', filePath)
+    await downloadFromGcs(video.uri, project, filePath)
+    // QR 다운로드용 — 우리 앱(IAP 뒤)을 거치지 않는 직행 링크.
+    // 버킷에 쓰기/서명 권한이 없는 로컬 dev 등에서는 null 이 돌아올 수 있다.
+    downloadUrl = (await createSignedUrl(project, video.uri)) ?? undefined
   } else if (video.uri) {
     // Gemini API — Files API 가 ACTIVE 가 될 때까지 기다린 뒤 내려받는다
     const match = /files\/([a-zA-Z0-9_-]+)/.exec(video.uri)
@@ -160,5 +157,5 @@ export async function generateVideo(
     throw new Error('응답에 영상 데이터도 URI 도 없습니다')
   }
 
-  return { interactionId: interaction.id, fileName }
+  return { interactionId: interaction.id, fileName, downloadUrl }
 }

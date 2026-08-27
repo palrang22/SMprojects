@@ -128,13 +128,31 @@ SDK 타입만 믿지 않고 **퍼블리셔 모델 메타데이터를 직접 조�
    - [ ] `roles/aiplatform.user` ← **관리자 권한 받으면 재시도** (`--condition=None` 붙일 것,
          프로젝트에 조건부 바인딩이 있어서 안 붙이면 대화형 프롬프트 뜸)
    - [ ] 버킷 `smproject-sh` 에 `roles/storage.objectAdmin` ← 마찬가지로 대기
-3. **OAuth 동의 화면** — 내부(Internal). IAP 켜기의 선행 조건.
-   ⚠️ 이것도 Editor로 막힐 수 있음 — 관리자 권한 받을 때 같이 확인
+   - [ ] `roles/iam.serviceAccountTokenCreator` (자기 자신 대상, self-bind) ← **QR 다운로드
+         (서명 URL) 기능에 필요해서 추가됨.** 이게 없으면 `server/gcs.ts`의
+         `createSignedUrl`이 계속 null 을 돌려주고, 결과 카드의 "QR로 저장" 버튼이 아예
+         안 뜬다 (에러는 안 남, 그냥 기능만 조용히 빠짐). 명령어:
+         ```
+         gcloud iam service-accounts add-iam-policy-binding \
+           smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com \
+           --member="serviceAccount:smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com" \
+           --role="roles/iam.serviceAccountTokenCreator" --project=kktae-demo
+         ```
+3. **OAuth 동의 화면** — 내부(Internal). IAP 켜기의 선행 조건. ← 다음 순서
 4. 리전: Cloud Run 은 `asia-northeast3` (서울).
    ※ Vertex 호출 리전(`global`)과 무관하다. 헷갈리지 말 것
-5. **배포**: `gcloud run deploy --source . --min-instances=1 --max-instances=1`
-   (인스턴스 1개 고정 — 인메모리 잡 스토어를 그대로 쓰기 위한 조건)
-6. **IAP 켜기 + `domain:mz.co.kr` 허용**
+5. **배포** ✅ 완료 (2026-08-27)
+   - 서비스명 `smprojects-sh` (⚠️ "omni"로 지을 뻔했다가 두 번째로 지적받음 — 이 앱은
+     세 스튜디오 전부를 다루니 특정 모델 코드네임을 쓰지 말 것. `smprojects-ai-runner`
+     서비스 계정 때도 같은 지적 받았었다)
+   - URL: `https://smprojects-sh-264172533638.asia-northeast3.run.app`
+     (`--no-allow-unauthenticated`라 IAP 켜기 전까진 브라우저로 못 들어간다 — 정상)
+   - ⚠️ **PowerShell 함정**: `--set-env-vars`에 따옴표 없이 콤마로 구분된 값을 넘기면
+     PowerShell이 콤마를 배열 연산자로 해석해서 값이 깨진다(공백으로 이어붙여짐).
+     **반드시 전체를 따옴표로 감쌀 것**: `--set-env-vars "K1=v1,K2=v2,..."`
+   - 프로젝트 번호 `264172533638` — IAM 정책의 서비스 에이전트 계정명에서 확인 가능,
+     `gcloud projects describe` 안 돌려도 됨
+6. **IAP 켜기 + `domain:mz.co.kr` 허용** ← 그다음 순서
 7. ~~JWT(`X-Goog-IAP-JWT-Assertion`) 서명 검증 ← 코드, 배포 후~~
    → **코드는 준비됨** (`server/iap.ts`). 배포 후 `IAP_AUDIENCE` 값만 채워 넣으면 된다.
    앞의 두 헤더는 스푸핑 가능하다
@@ -184,7 +202,10 @@ Cloud Run 파일시스템은 tmpfs(메모리)다. 지금처럼 GCS → 로컬 �
 ## 9/14 부스 행사까지 (내일 오전 마감 이후)
 
 - [ ] 사용자별 레이트 리밋 (IAP 신원 기준) — 부스는 방문자가 반복해서 누른다
-- [ ] 결과물 회수 — 서명 URL + QR 코드 유력
+- [x] 결과물 회수 — 서명 URL + QR 코드. **코드는 완료** (`server/gcs.ts`,
+      `src/components/DownloadQr.tsx`, 01·02 결과 카드의 "QR로 저장" 버튼).
+      로컬에서 팝오버·QR 렌더링은 mock 으로 확인함. **실제 서명 URL 동작은 미검증** —
+      `roles/iam.serviceAccountTokenCreator` 권한 확보 + 배포 후 확인 필요 (S4 참고)
 - [ ] 실패·타임아웃 시 방문자용 화면 (지금은 SDK 에러 문자열이 그대로 노출된다)
 - [ ] 부스 환경 대응 — 화면 크기, 터치 입력, 유휴 상태 자동 복귀
 - [ ] 부스 소음 환경의 음성 입력 (03) — 헤드셋? 지향성 마이크? **하드웨어 조달 리드타임**

@@ -1,5 +1,6 @@
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
+import { createSignedUrl, uploadBuffer } from './gcs.ts'
 
 /**
  * Virtual Try-On — 인물 사진에 의상을 입힌 이미지를 만든다.
@@ -27,8 +28,13 @@ export type TryOnOptions = {
   numberOfImages?: number
 }
 
+export type TryOnResultImage = TryOnImage & {
+  /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 버킷 미설정/서명 실패 시 없음. */
+  downloadUrl?: string
+}
+
 export type TryOnResult = {
-  images: TryOnImage[]
+  images: TryOnResultImage[]
 }
 
 /** base64 + mimeType 을 SDK 의 Image 형태로 바꾼다 */
@@ -58,7 +64,7 @@ export async function generateTryOn(
 
   // 안전 필터에 걸리면 image 없이 raiFilteredReason 만 온다
   const filtered = generated.find((g) => g.raiFilteredReason)
-  const images = generated.flatMap((g) => {
+  const images: TryOnImage[] = generated.flatMap((g) => {
     const bytes = g.image?.imageBytes
     if (!bytes) return []
     return [{ data: bytes, mimeType: g.image?.mimeType ?? 'image/png' }]
@@ -72,5 +78,39 @@ export async function generateTryOn(
     )
   }
 
-  return { images }
+  return { images: await withDownloadUrls(config, images) }
+}
+
+/**
+ * QR 다운로드용 — 결과 이미지를 버킷에 올리고 서명 URL을 붙인다.
+ * base64 인라인 응답과 달리, 이 링크는 우리 앱(IAP 뒤)을 거치지 않고
+ * 브라우저 밖(부스 방문자 폰)에서도 열린다.
+ *
+ * config.mode 가 vertex 가 아니거나 버킷이 없으면(API 키 모드 등) 조용히 건너뛴다 —
+ * 인라인 미리보기/다운로드는 이 경우에도 그대로 동작한다.
+ */
+async function withDownloadUrls(
+  config: OmniConfig,
+  images: TryOnImage[],
+): Promise<TryOnResultImage[]> {
+  if (config.mode !== 'vertex' || !config.outputGcsUri) return images
+
+  const { project, outputGcsUri } = config
+  const stamp = Date.now()
+
+  return Promise.all(
+    images.map(async (img, i) => {
+      try {
+        const ext = img.mimeType.split('/')[1] ?? 'png'
+        const gsUri = `${outputGcsUri}/looks/${stamp}-${i}.${ext}`
+        await uploadBuffer(project, gsUri, Buffer.from(img.data, 'base64'), img.mimeType)
+        const downloadUrl = (await createSignedUrl(project, gsUri)) ?? undefined
+        return { ...img, downloadUrl }
+      } catch (err) {
+        // 업로드 자체가 실패해도(권한 등) 인라인 결과는 그대로 보여준다
+        console.warn('[tryon] GCS 업로드 실패 — QR 다운로드 없이 계속합니다:', err)
+        return img
+      }
+    }),
+  )
 }

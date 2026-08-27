@@ -51,7 +51,7 @@
   body{
     background:var(--ink);
     color:var(--paper);
-    font-family:"Helvetica Neue",Helvetica,"Apple SD Gothic Neo","Pretendard",Arial,sans-serif;
+    font-family:"Pretendard Variable","Pretendard","Helvetica Neue",Helvetica,"Apple SD Gothic Neo",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
     overflow-x:hidden;
   }
@@ -132,6 +132,9 @@
   }
   h1 .thin{font-weight:300;letter-spacing:-.01em}
   h1 .out{
+    /* variable 폰트는 굵은 굵기 보간 시 윤곽선이 겹쳐서 stroke 가 이중선으로 보인다.
+       static 폰트(main.tsx 에서 별도 로드)로 강제해서 회피한다. */
+    font-family:"Pretendard","Helvetica Neue",Helvetica,"Apple SD Gothic Neo",Arial,sans-serif;
     -webkit-text-stroke:1.3px var(--paper);color:transparent;
   }
   .lede{

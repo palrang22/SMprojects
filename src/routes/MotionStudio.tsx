@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DownloadQr } from "../components/DownloadQr.tsx";
 import { readAsAttachment, type Attachment } from "../lib/image.ts";
 import "../styles/studio.css";
 
@@ -11,6 +12,7 @@ type Job = {
   createdAt: number;
   completedAt?: number;
   videoUrl?: string;
+  downloadUrl?: string;
   interactionId?: string;
   error?: string;
 };
@@ -20,6 +22,7 @@ type Turn = {
   interactionId: string;
   prompt: string;
   videoUrl: string;
+  downloadUrl?: string;
 };
 
 type Health = {
@@ -102,6 +105,7 @@ export function MotionStudio() {
               interactionId: next.interactionId!,
               prompt,
               videoUrl: next.videoUrl!,
+              downloadUrl: next.downloadUrl,
             },
           ]);
           setPrompt("");
@@ -220,6 +224,7 @@ export function MotionStudio() {
                   ⬇ 다운로드
                 </a>
                 <code>{turn.interactionId}</code>
+                <DownloadQr url={turn.downloadUrl} />
               </div>
             </article>
           ))}
@@ -227,26 +232,30 @@ export function MotionStudio() {
       )}
 
       <section className="composer">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
-          }}
-          placeholder="만들고 싶은 영상을 설명하세요. (⌘+Enter 로 생성)"
-          rows={3}
-          disabled={busy}
-        />
-
-        {!prompt && (
-          <div className="examples">
-            {EXAMPLE_PROMPTS.map((ex) => (
-              <button key={ex} type="button" onClick={() => setPrompt(ex)}>
-                {ex}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="composer-attach">
+          <span className="hint">
+            텍스트만 입력하거나, 사진을 함께 올려보세요
+          </span>
+          <button
+            type="button"
+            className="attach-cta"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || attachments.length >= 3}
+          >
+            🖼 사진 추가 {attachments.length > 0 && `(${attachments.length}/3)`}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              void addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </div>
 
         {attachments.length > 0 && (
           <div className="attachments">
@@ -263,6 +272,27 @@ export function MotionStudio() {
                   ✕
                 </button>
               </div>
+            ))}
+          </div>
+        )}
+
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
+          }}
+          placeholder="만들고 싶은 영상을 설명하세요."
+          rows={3}
+          disabled={busy}
+        />
+
+        {!prompt && (
+          <div className="examples">
+            {EXAMPLE_PROMPTS.map((ex) => (
+              <button key={ex} type="button" onClick={() => setPrompt(ex)}>
+                {ex}
+              </button>
             ))}
           </div>
         )}
@@ -309,26 +339,6 @@ export function MotionStudio() {
               disabled={busy}
             />
           </label>
-
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={busy || attachments.length >= 3}
-          >
-            🖼 이미지 {attachments.length > 0 && `(${attachments.length}/3)`}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              void addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
 
           <span className="cost">
             ≈ ${(duration * PRICE_PER_SECOND).toFixed(2)}
