@@ -158,6 +158,12 @@ export class PcmPlayer {
     this.playing.add(source);
   }
 
+  /** 지금 예약된 재생이 끝나기까지 남은 시간(ms). 재생 중이 아니면 0 */
+  remainingMs(): number {
+    if (!this.ctx) return 0;
+    return Math.max(0, (this.cursor - this.ctx.currentTime) * 1000);
+  }
+
   /** 사용자가 끼어들었을 때 — 예약된 것까지 전부 버린다 */
   flush(): void {
     for (const source of this.playing) {

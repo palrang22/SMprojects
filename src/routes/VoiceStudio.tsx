@@ -49,6 +49,9 @@ export function VoiceStudio() {
   const frameTimerRef = useRef<number | null>(null);
   // 서버가 이제 손님 발화 자막만 보낸다. 턴이 끝나면 다음 발화를 새 줄로 시작하기 위한 플래그
   const newLineRef = useRef(false);
+  // half-duplex — AI가 말하는(재생 중인) 동안엔 마이크를 서버로 안 보낸다 (스피커 에코 차단)
+  const micOpenRef = useRef(true);
+  const reopenTimerRef = useRef<number | null>(null);
   const pendingTextRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -99,6 +102,11 @@ export function VoiceStudio() {
       clearInterval(frameTimerRef.current);
       frameTimerRef.current = null;
     }
+    if (reopenTimerRef.current !== null) {
+      clearTimeout(reopenTimerRef.current);
+      reopenTimerRef.current = null;
+    }
+    micOpenRef.current = true;
 
     stopMicRef.current?.();
     stopMicRef.current = null;
@@ -175,6 +183,7 @@ export function VoiceStudio() {
     setNotice(null);
     setLines([]);
     newLineRef.current = false;
+    micOpenRef.current = true;
     setPhase("connecting");
 
     const player = new PcmPlayer();
@@ -187,21 +196,45 @@ export function VoiceStudio() {
       const socket = new WebSocket(liveUrl());
       socketRef.current = socket;
 
+      // 재생 꼬리가 끝나면 마이크를 다시 연다. extra = turnComplete 후엔 짧게,
+      // AI가 아직 말하는 중이면 넉넉히(turnComplete 신호가 안 와도 언젠간 열리도록).
+      const scheduleMicReopen = (extraMs: number) => {
+        if (reopenTimerRef.current !== null) clearTimeout(reopenTimerRef.current);
+        reopenTimerRef.current = window.setTimeout(() => {
+          micOpenRef.current = true;
+          reopenTimerRef.current = null;
+        }, player.remainingMs() + extraMs);
+      };
+
       socket.onmessage = (event) => {
         const msg = JSON.parse(String(event.data)) as ServerMessage;
         switch (msg.type) {
           case "audio":
             player.play(fromBase64(msg.data));
+            // AI가 말하는 동안엔 마이크를 닫는다 (스피커 에코가 유령 입력으로 들어가는 것 방지)
+            if (micOpenRef.current) {
+              micOpenRef.current = false;
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: "audioStreamEnd" }));
+              }
+            }
+            scheduleMicReopen(5000);
             break;
           case "interrupted":
             player.flush();
+            if (reopenTimerRef.current !== null) {
+              clearTimeout(reopenTimerRef.current);
+              reopenTimerRef.current = null;
+            }
+            micOpenRef.current = true;
             break;
           case "transcript":
             appendTranscript(msg.role, msg.text);
             break;
           case "turnComplete":
-            // 턴 경계 — 다음 손님 발화는 새 줄로
+            // 턴 경계 — 다음 손님 발화는 새 줄로. 재생 꼬리 + 여유 250ms 후 마이크 재개
             newLineRef.current = true;
+            scheduleMicReopen(250);
             break;
           case "error":
             setError(msg.message);
@@ -226,7 +259,7 @@ export function VoiceStudio() {
       });
 
       stopMicRef.current = await startMicCapture((data) => {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (micOpenRef.current && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "audio", data }));
         }
       });

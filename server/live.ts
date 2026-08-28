@@ -1,6 +1,7 @@
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import {
+  ActivityHandling,
   EndSensitivity,
   Modality,
   StartSensitivity,
@@ -134,7 +135,7 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
     browser.close()
   }
 
-  // 3분이면 정상 종료 (오류 아님) — 부스 비용·대기열 방어
+  // 시간 초과 시 정상 종료 (오류 아님) — 부스 비용·대기열 방어 (SESSION_MAX_MS)
   const timer = setTimeout(
     () => shutdown('세션이 종료되었습니다. 다시 보려면 버튼을 눌러 주세요.', 'ended'),
     SESSION_MAX_MS,
@@ -156,8 +157,11 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
           voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           languageCode: 'ko-KR',
         },
-        // 음성 감지 민감도 낮음 — 모델이 성급하게 끼어들지 않게 한다
         realtimeInputConfig: {
+          // 손님 목소리(또는 스피커 에코·주변 소음)가 감지돼도 AI 발화를 자르지 않는다.
+          // 부스·이어폰 없는 환경에서 에코로 AI가 계속 끊기는 문제를 막는다.
+          activityHandling: ActivityHandling.NO_INTERRUPTION,
+          // 음성 감지 민감도는 낮게 — 손님 턴 시작/종료 판정만 느슨하게
           automaticActivityDetection: {
             startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
             endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,

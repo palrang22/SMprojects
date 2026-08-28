@@ -268,6 +268,16 @@ Cloud Run 파일시스템은 tmpfs(메모리)다. 지금처럼 GCS → 로컬 �
   공식 Live 데모 사이트도 AI 자막을 안 보여주는 이유로 추정. 근본 완화는 NO_INTERRUPTION 또는
   푸시투토크 (§ "고칠 수 있는 방향" — 아직 미적용).
 - 손님 발화 자막은 `turnComplete` 를 경계로 발화별로 줄을 나눈다 (`newLineRef`).
+- ⚠️ **친구 테스트 시 "AI가 말하다 끊김"** (2026-08-28): 본인(조용한 방/이어폰)은 멀쩡한데
+  친구는 AI가 자꾸 끊김. 원인 = **스피커→마이크 에코 + 주변 소음**을 Gemini VAD 가 손님 발화로
+  잡아 barge-in(기본 `START_OF_ACTIVITY_INTERRUPTS`) → AI 발화 중단. `GAIN=1.8` 이 에코를 키움.
+  → `realtimeInputConfig.activityHandling = NO_INTERRUPTION` 로 변경. AI 발화는 어떤 소리에도
+  안 끊긴다 (관상가가 리드하는 구성이라 barge-in 불필요).
+- **half-duplex** (`VoiceStudio.tsx`): `NO_INTERRUPTION` 은 "안 끊김"이지 "에코를 입력에서 뺌"이
+  아니라서, AI 목소리가 스피커→마이크로 돌아가면 유령 입력이 된다. → AI가 **재생 중인 동안**
+  마이크 전송을 끊는다(`micOpenRef`). 첫 `audio` 에서 닫고 `audioStreamEnd` 전송,
+  `turnComplete` + 재생 꼬리(`player.remainingMs()`) + 250ms 뒤 재개. `turnComplete` 누락 대비
+  5초 fallback. 결과: AI 말하는 중 손님이 한 말은 안 들어가고, AI 끝난 뒤 말한 것만 입력됨.
   3→4단계 사이 "SM 대박나자 외쳐보세요" 1회. 끝에 총평 + 올해 주의점, 이후 자유 대화, 재시작 금지.
 - **선제 발화 없음**: 손님이 "안녕하세요" 하고 먼저 건다 (연결 텀 동안 자연스럽게 말이 나옴).
   기존 `sendClientContent` 킥오프 제거.
