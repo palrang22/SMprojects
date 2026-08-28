@@ -450,7 +450,7 @@ textarea:focus-visible {
   border-radius: 12px;
   background: var(--code-bg);
   aspect-ratio: 3 / 4;
-  max-height: 300px;
+  max-height: 380px;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -527,6 +527,13 @@ textarea:focus-visible {
   gap: 1rem;
 }
 
+.results-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  opacity: 0.8;
+}
+
 .result {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -535,12 +542,231 @@ textarea:focus-visible {
 }
 
 .result img {
-  width: 100%;
   display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 60vh;
+  margin: 0 auto;
 }
 
 .result .turn-actions {
   padding: 0.6rem 0.9rem;
+  flex-wrap: wrap;
+}
+
+/* ── 결과 액션 줄 ──────────────────────────────── */
+.turn-actions .continue-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-right: auto;
+}
+
+/* "내 PC에 다운로드" / "QR로 다운로드" — 같은 모양의 버튼 두 개 */
+.turn-actions .result-dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.turn-actions .result-dl:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+/* ── 인물 슬롯 — [샘플에서 고르기] / [사진 찍기] ── */
+.person-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0 1rem;
+}
+
+.person-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.95rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+
+.person-choice:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.person-choice:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.person-choice .ico {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.person-cam-error {
+  margin: 0.6rem 1rem 0;
+  font-size: 0.78rem;
+  color: var(--g-red);
+  text-align: center;
+}
+
+/* 슬롯을 꽉 채우는 웹캠 미리보기 */
+.slot-cam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+  transform: scaleX(-1); /* 거울 모드 */
+}
+
+.slot-cam-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.7rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+}
+
+.slot-cam-actions button {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+}
+
+.slot-cam-actions button.shoot {
+  font-weight: 600;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── 샘플 인물 팝업 (3 × 2) ───────────────────── */
+.sample-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.sample-modal-panel {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.sample-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.sample-modal-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-h);
+}
+
+.sample-modal-close {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .sample-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.sample-cell {
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--ink-3);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.16s ease;
+}
+
+.sample-cell img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+}
+
+.sample-cell span {
+  padding: 0.35rem;
+  font-size: 0.78rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+
+.sample-cell:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.sample-cell:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 /* ---------- 03 Voice Studio ---------- */
