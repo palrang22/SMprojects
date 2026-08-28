@@ -13,13 +13,27 @@
 | # | 스튜디오 | 라우트 | 모델/API | 강조색 | 상태 |
 |---|---|---|---|---|---|
 | 01 Video | **Motion Studio** | `/video` | `gemini-omni-flash-preview` | Google red | 🟡 개발 중 |
-| 02 Image | **Look Studio** | `/image` | Virtual Try-On | Google blue | ⬜ 자리표시자 |
-| 03 Audio | **Voice Studio** | `/audio` | Gemini Live | Google yellow | ⬜ 자리표시자 |
+| 02 Image | **Look Studio** | `/image` | `virtual-try-on-001` | Google blue | 🟡 개발 중 |
+| 03 Audio | **Voice Studio** | `/audio` | `gemini-live-2.5-flash` | Google yellow | 🟡 개발 중 (셸·프록시 완료, 프롬프트/컨셉 미정) |
 
 행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것.
 
-**하나씩 순서대로** 개발한다. 지금은 1번만 손대고 있다.
-상세 구현 방식은 대부분 미정 — `PLAN.md` 참고.
+**하나씩 순서대로** 개발한다. 상세 구현 방식은 대부분 미정 — `PLAN.md` 참고.
+
+### 체험자 · 컨셉 방향
+
+체험자는 **20~30대 SM 엔터 직원**이다. 세 스튜디오 모두 이 층이
+**"이런 것도 된다고?"** 하고 놀랄 만한 데모여야 한다. "동작한다"가 아니라
+"내 업무/관심사에 이게 꽂힌다"를 목표로 기능을 디벨롭한다.
+
+- **02 Look Studio — 아이돌 무대의상 입어보기.** 인물(샘플 아이돌 사진 또는 웹캠 촬영)에
+  무대의상을 합성한다. 샘플 인물 사진은 **저작권·초상권 문제가 없는 아이돌 사진만**
+  쓴다 (확보 가능하다고 확인받음). 파일은 `public/samples/` (`README.md` 참고).
+  `virtual-try-on-001` 은 상의/하의/원피스만 지원 — 가방·모자·소품은 안 됨.
+- **03 Voice Studio — AI 관상가.** 웹캠으로 얼굴을 보여주면 관상가 아주머니 페르소나가
+  영상을 보면서 실시간 음성으로 관상을 봐준다 (`PLAN.md` §03). Gemini Live 의 영상+음성
+  동시 처리를 그대로 보여주는 컨셉.
+- **01 Motion Studio** 도 같은 기준으로 시나리오를 잡을 것.
 
 ## 스택 · 명령어
 

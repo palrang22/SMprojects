@@ -108,7 +108,7 @@ function SampleModal({
   );
 }
 
-/** 인물 입력 — [샘플에서 고르기] / [사진 찍기] 두 갈래 (파일 업로드 없음) */
+/** 인물 입력 — [샘플에서 고르기] / [사진 찍기] / [파일 업로드] */
 function PersonPicker({
   value,
   onPick,
@@ -125,6 +125,16 @@ function PersonPicker({
   const [camError, setCamError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function pickFile(file: File) {
+    setCamError(null);
+    try {
+      onPick(await readAsAttachment(file));
+    } catch (err) {
+      setCamError(err instanceof Error ? err.message : "사진을 읽지 못했습니다");
+    }
+  }
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -247,6 +257,26 @@ function PersonPicker({
           <span className="ico">📷</span>
           사진 찍기
         </button>
+        <button
+          type="button"
+          className="person-choice"
+          onClick={() => fileRef.current?.click()}
+          disabled={disabled}
+        >
+          <span className="ico">＋</span>
+          파일 업로드
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void pickFile(file);
+            e.target.value = "";
+          }}
+        />
       </div>
       {camError && <p className="person-cam-error">{camError}</p>}
       {samplesOpen && (

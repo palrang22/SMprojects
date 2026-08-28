@@ -117,11 +117,20 @@ export async function startMicCapture(
  */
 export class PcmPlayer {
   private ctx: AudioContext | null = null;
+  private gain: GainNode | null = null;
   private cursor = 0;
   private playing = new Set<AudioBufferSourceNode>();
 
+  /** 모델 출력이 작아서 부스 소음에 묻힌다 — 살짝 키운다 */
+  private static readonly GAIN = 1.8;
+
   private context(): AudioContext {
-    this.ctx ??= new AudioContext();
+    if (!this.ctx) {
+      this.ctx = new AudioContext();
+      this.gain = this.ctx.createGain();
+      this.gain.gain.value = PcmPlayer.GAIN;
+      this.gain.connect(this.ctx.destination);
+    }
     return this.ctx;
   }
 
@@ -140,7 +149,7 @@ export class PcmPlayer {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    source.connect(this.gain ?? ctx.destination);
     source.onended = () => this.playing.delete(source);
 
     const startAt = Math.max(ctx.currentTime, this.cursor);
@@ -166,5 +175,6 @@ export class PcmPlayer {
     this.flush();
     void this.ctx?.close();
     this.ctx = null;
+    this.gain = null;
   }
 }

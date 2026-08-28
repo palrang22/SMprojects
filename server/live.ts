@@ -1,6 +1,12 @@
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
-import { Modality, type LiveServerMessage, type Session } from '@google/genai'
+import {
+  EndSensitivity,
+  Modality,
+  StartSensitivity,
+  type LiveServerMessage,
+  type Session,
+} from '@google/genai'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
@@ -31,19 +37,59 @@ export const LIVE_MODEL_APIKEY = 'gemini-live-2.5-flash'
 export const LIVE_PATH = '/api/live'
 
 /** 부스 비용 방어 — 한 세션이 무한정 열려 있지 않게 한다 */
-const SESSION_MAX_MS = 3 * 60 * 1000
+const SESSION_MAX_MS = 5 * 60 * 1000
 
 export function liveModelFor(config: OmniConfig): string {
   return config.mode === 'vertex' ? LIVE_MODEL_VERTEX : LIVE_MODEL_APIKEY
 }
 
-const SYSTEM_INSTRUCTION =
-  '당신은 SM Entertainment AI Day 부스의 안내 도우미입니다. ' +
-  '방문자와 한국어로 짧고 친근하게 대화하세요. 답변은 2~3문장을 넘기지 마세요.'
+/**
+ * 03 Voice Studio 컨셉 — AI 관상가.
+ * 방문자가 웹캠으로 얼굴을 보여주면 실시간으로 관상을 봐준다.
+ */
+const SYSTEM_INSTRUCTION = [
+  '당신은 관상을 봐주는 AI입니다. SM Entertainment AI Day 부스에 있고,',
+  '손님 얼굴이 실시간 영상으로, 목소리가 실시간 음성으로 들어옵니다.',
+  '',
+  '[말투]',
+  '- 정중한 존댓말, 차분하고 또렷하게. 손님을 "손님"이라 부른다.',
+  '- 한 번에 3~4문장. 화면에 보이는 특징(이마 넓이, 눈썹 숱, 코끝 모양, 입꼬리 방향 등)을',
+  '  구체적으로 짚어 재미있게 말한다. "좋습니다"만 반복하는 뻔한 덕담과 피부·성형 조언은 금지.',
+  '- 관상학 용어(관록궁·형제궁·전택궁·재백궁·식록·지각)를 뜻풀이와 함께 자연스럽게 쓴다.',
+  '',
+  '[진행]',
+  '이마 → 눈썹·눈 → 코 → 입·턱, 네 부위를 순서대로 한 번씩 본다.',
+  '한 부위를 볼 때: 그 부위가 뭘 뜻하는지 한 문장으로 말하고, 자세를 청하고',
+  '(예: "머리를 넘겨 이마를 보여주세요"), 가벼운 질문을 하나 던진 뒤 손님 답을 기다린다.',
+  '손님이 답하면 그 부위를 2~3문장으로 읽어주고, 곧바로 이어서 다음 부위로 안내한다.',
+  '손님이 "다음"이라고 말하기를 기다리지 않는다.',
+  '',
+  '[반복 금지 — 매우 중요]',
+  '이미 읽은 부위는 두 번 읽지 않는다. 방금 한 말을 다시 하지 않는다.',
+  '손님 답이 짧거나 부실해도 다시 캐묻지 말고, 보이는 대로 읽고 다음 부위로 넘어간다.',
+  '진행이 꼬이면 남은 부위는 건너뛰고 바로 총평으로 간다.',
+  '',
+  '[돈 이야기] 재물운·재정·돈 이야기는 오직 코(재백궁)를 볼 때만. 눈에서는 가정·집안·심성만 본다.',
+  '',
+  '[음성]',
+  '전체 대화에서 한두 번, 손님 목소리 울림·톤을 관상 관점에서 짧게 평한다. 표현은 매번 바꾼다.',
+  '입·턱을 보기 직전에 한 번 "SM 대박나자, 하고 크게 외쳐보세요" 하고 그 울림을 평한다.',
+  '',
+  '[마무리]',
+  '네 부위를 다 보면 "총평을 원하시면 말씀해주세요." 하고 다음 발화에 "총평입니다" 하고 종합 3~4문장 + 올해 조심할 점 하나를 말한다.',
+  '그 뒤에는 관상을 처음부터 다시 시작하지 않고, 손님이 더 물으면 그것만 답한다.',
+  '',
+  '[금지] 정치·종교·건강 진단·수명·불행 예언은 피한다. 재미로 보는 것이다.',
+].join('\n')
+
+/** 목소리 — 차분한 톤. 마음에 안 들면 바꿀 것 (voice 목록 30종) */
+const VOICE_NAME = 'Gacrux'
 
 type ClientMessage =
   | { type: 'audio'; data: string }
   | { type: 'audioStreamEnd' }
+  | { type: 'video'; data: string }
+  | { type: 'text'; text: string }
 
 function send(ws: WebSocket, payload: unknown): void {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload))
@@ -62,9 +108,9 @@ function forwardServerMessage(browser: WebSocket, message: LiveServerMessage): v
     if (data) send(browser, { type: 'audio', data })
   }
 
-  const transcript = content.outputTranscription?.text
-  if (transcript) send(browser, { type: 'transcript', role: 'model', text: transcript })
-
+  // AI 발화 자막은 일부러 내보내지 않는다 — 화면에 뜨면 방문자가 미리 읽고
+  // 다음 대사를 예측해 미리 답하게 되고, 그게 barge-in 반복 문제를 키운다.
+  // 손님이 한 말(inputTranscription)만 자막으로 보여준다.
   const heard = content.inputTranscription?.text
   if (heard) send(browser, { type: 'transcript', role: 'user', text: heard })
 
@@ -75,11 +121,11 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
   let session: Session | null = null
   let closed = false
 
-  const shutdown = (reason?: string) => {
+  const shutdown = (reason?: string, kind: 'error' | 'ended' = 'error') => {
     if (closed) return
     closed = true
     clearTimeout(timer)
-    if (reason) send(browser, { type: 'error', message: reason })
+    if (reason) send(browser, { type: kind, message: reason })
     try {
       session?.close()
     } catch {
@@ -88,10 +134,13 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
     browser.close()
   }
 
+  // 3분이면 정상 종료 (오류 아님) — 부스 비용·대기열 방어
   const timer = setTimeout(
-    () => shutdown('세션 시간이 끝났습니다 (3분). 다시 시작해 주세요.'),
+    () => shutdown('세션이 종료되었습니다. 다시 보려면 버튼을 눌러 주세요.', 'ended'),
     SESSION_MAX_MS,
   )
+
+  // 선제 발화 없음 — 손님이 "안녕하세요" 하고 먼저 말을 건다 (연결 텀 동안 자연스럽게 말이 나온다)
 
   try {
     const ai = createClient(config)
@@ -101,7 +150,21 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
         responseModalities: [Modality.AUDIO],
         systemInstruction: SYSTEM_INSTRUCTION,
         inputAudioTranscription: {},
+        // 요청은 하되(안정성), 클라로 전달만 안 한다 — forwardServerMessage 참고
         outputAudioTranscription: {},
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
+          languageCode: 'ko-KR',
+        },
+        // 음성 감지 민감도 낮음 — 모델이 성급하게 끼어들지 않게 한다
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+            endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+            prefixPaddingMs: 300,
+            silenceDurationMs: 1200,
+          },
+        },
       },
       callbacks: {
         onopen: () => send(browser, { type: 'ready' }),
@@ -131,6 +194,15 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
       })
     } else if (msg.type === 'audioStreamEnd') {
       session.sendRealtimeInput({ audioStreamEnd: true })
+    } else if (msg.type === 'video') {
+      // 웹캠 프레임 (JPEG). 음성 대화와 병행 — 활동 감지에는 잡히지 않는다
+      session.sendRealtimeInput({
+        video: { data: msg.data, mimeType: 'image/jpeg' },
+      })
+    } else if (msg.type === 'text') {
+      // 채팅 입력 — 하나의 완결된 턴으로 넣어 응답을 유도한다
+      const text = msg.text.trim()
+      if (text) session.sendClientContent({ turns: text, turnComplete: true })
     }
   })
 
