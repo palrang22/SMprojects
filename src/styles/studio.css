@@ -306,6 +306,66 @@ textarea:focus-visible {
 .attachments {
   display: flex;
   gap: 0.5rem;
+  /* 10 장까지 붙으므로 한 줄을 넘기면 접는다 */
+  flex-wrap: wrap;
+}
+
+/* 장면 확장 모드 — 지금 어느 영상 뒤에 붙는지 알려준다 */
+.extend-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--g-red);
+  border-radius: 8px;
+  background: var(--ink-2);
+  color: var(--fog);
+  font-size: 0.85rem;
+}
+
+.extend-bar strong {
+  color: var(--paper);
+}
+
+.extend-bar button {
+  flex-shrink: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  color: var(--fog-2);
+  cursor: pointer;
+}
+
+.extend-bar button:hover {
+  color: var(--paper);
+  border-color: var(--line);
+}
+
+.extend-cta {
+  border: 1px solid var(--g-red);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  color: var(--g-red);
+  cursor: pointer;
+}
+
+.extend-cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.turn-length {
+  color: var(--fog-2);
+  font-size: 0.8rem;
+}
+
+.turn-maxed {
+  color: var(--fog-2);
+  font-size: 0.8rem;
 }
 
 .attachment {
@@ -1013,4 +1073,22 @@ textarea:focus-visible {
 .gate button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 에러 배너의 "에러코드 확인하기" — 원본 에러를 새 탭에서 연다 */
+.banner-detail {
+  margin-left: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.banner-detail:hover {
+  opacity: 1;
 }

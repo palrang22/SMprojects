@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PcmPlayer, fromBase64, startMicCapture } from "../lib/audio.ts";
+import { ErrorBanner } from "../components/ErrorBanner.tsx";
 import "../styles/studio.css";
 
 type Health = {
@@ -18,7 +19,7 @@ type ServerMessage =
   | { type: "interrupted" }
   | { type: "turnComplete" }
   | { type: "transcript"; role: "user" | "model"; text: string }
-  | { type: "error"; message: string }
+  | { type: "error"; message: string; detail?: string }
   | { type: "ended"; message: string };
 
 function liveUrl(): string {
@@ -35,6 +36,8 @@ export function VoiceStudio() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** 서버가 준 원본 에러 전문 — 새 탭에서 보여준다 */
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [camError, setCamError] = useState<string | null>(null);
   const [chatText, setChatText] = useState("");
@@ -238,6 +241,7 @@ export function VoiceStudio() {
             break;
           case "error":
             setError(msg.message);
+            setErrorDetail(msg.detail ?? null);
             stop();
             break;
           case "ended":
@@ -249,6 +253,10 @@ export function VoiceStudio() {
 
       socket.onerror = () => {
         setError("음성 서버에 연결하지 못했습니다");
+        setErrorDetail(
+          "WebSocket 연결 실패 — /api/live\n" +
+            "dev 서버가 떠 있는지, Live 프록시가 살아 있는지 확인하세요.",
+        );
         stop();
       };
       socket.onclose = () => stop();
@@ -280,6 +288,7 @@ export function VoiceStudio() {
           ? err.message
           : "마이크를 사용할 수 없습니다. 브라우저 권한을 확인해 주세요.",
       );
+      setErrorDetail(err instanceof Error ? (err.stack ?? null) : String(err));
       stop();
     }
   }
@@ -302,16 +311,15 @@ export function VoiceStudio() {
       )}
 
       {error && (
-        <div className="banner banner-error">
-          <strong>오류</strong> {error}
-          <button
-            type="button"
-            className="banner-close"
-            onClick={() => setError(null)}
-          >
-            ✕
-          </button>
-        </div>
+        <ErrorBanner
+          message={error}
+          detail={errorDetail}
+          context="03 Voice Studio"
+          onClose={() => {
+            setError(null);
+            setErrorDetail(null);
+          }}
+        />
       )}
 
       {notice && (

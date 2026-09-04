@@ -7,6 +7,7 @@ import {
   readAsAttachment,
   type Attachment,
 } from "../lib/image.ts";
+import { ErrorBanner } from "../components/ErrorBanner.tsx";
 import "../styles/studio.css";
 
 type Health = {
@@ -362,6 +363,8 @@ export function LookStudio() {
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** 서버가 준 원본 에러 전문 — 새 탭에서 보여준다 */
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
   const composerRef = useRef<HTMLElement>(null);
 
@@ -395,6 +398,7 @@ export function LookStudio() {
       setProduct(await readAsAttachment(file));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setErrorDetail(err instanceof Error ? (err.stack ?? null) : String(err));
     }
   }
 
@@ -427,8 +431,10 @@ export function LookStudio() {
       const data = (await res.json()) as {
         images?: ResultImage[];
         error?: string;
+        detail?: string;
       };
       if (!res.ok || !data.images?.length) {
+        setErrorDetail(data.detail ?? null);
         throw new Error(data.error ?? "요청이 거부되었습니다");
       }
       setResults(data.images);
@@ -457,16 +463,15 @@ export function LookStudio() {
       )}
 
       {error && (
-        <div className="banner banner-error">
-          <strong>오류</strong> {error}
-          <button
-            type="button"
-            className="banner-close"
-            onClick={() => setError(null)}
-          >
-            ✕
-          </button>
-        </div>
+        <ErrorBanner
+          message={error}
+          detail={errorDetail}
+          context="02 Look Studio"
+          onClose={() => {
+            setError(null);
+            setErrorDetail(null);
+          }}
+        />
       )}
 
       {results.length > 0 && (

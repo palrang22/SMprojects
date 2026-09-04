@@ -1,4 +1,48 @@
 /** 스튜디오 공용 — 파일 입력에서 받은 이미지를 base64 로 읽는다 */
+
+/**
+ * 업로드 전 축소 기준.
+ *
+ * 입력 이미지는 GCS 를 거치지 않고 요청 본문에 base64 로 실려 우리 서버로 간다
+ * (버킷은 출력 영상 전용이다). base64 는 원본보다 약 1.33 배로 불어나므로
+ * 폰 사진 원본을 여러 장 넣으면 server/api.ts 의 25MB 상한에 바로 걸린다.
+ * 긴 변 1920px / JPEG 0.85 로 줄이면 장당 1MB 안쪽이라 10 장을 넣어도 여유가 있다.
+ */
+const MAX_EDGE = 1920;
+const JPEG_QUALITY = 0.85;
+
+/** 이 크기 아래면 재인코딩하지 않는다 — PNG 투명도 등 원본 특성을 보존한다 */
+const SKIP_RESIZE_BYTES = 1024 * 1024;
+
+/** 긴 변이 MAX_EDGE 를 넘으면 canvas 로 줄여 JPEG data URL 로 만든다 */
+async function shrink(file: File): Promise<string | null> {
+  if (file.size <= SKIP_RESIZE_BYTES) return null;
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return null; // 디코딩 실패 시 원본 경로로 넘긴다
+  }
+
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    return null;
+  }
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+}
+
 export type Attachment = {
   id: string;
   name: string;
@@ -7,21 +51,26 @@ export type Attachment = {
   preview: string; // data: URL, 미리보기용
 };
 
-export function readAsAttachment(file: File): Promise<Attachment> {
+export async function readAsAttachment(file: File): Promise<Attachment> {
+  const shrunk = await shrink(file);
+  const url = shrunk ?? (await readAsDataUrl(file));
+  const comma = url.indexOf(",");
+
+  return {
+    id: `${file.name}-${file.size}-${Date.now()}`,
+    name: file.name,
+    data: url.slice(comma + 1),
+    // 축소했으면 JPEG 로 재인코딩된 상태다
+    mimeType: shrunk ? "image/jpeg" : file.type || "image/png",
+    preview: url,
+  };
+}
+
+function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error(`${file.name} 을 읽지 못했습니다`));
-    reader.onload = () => {
-      const url = String(reader.result);
-      const comma = url.indexOf(",");
-      resolve({
-        id: `${file.name}-${file.size}-${Date.now()}`,
-        name: file.name,
-        data: url.slice(comma + 1),
-        mimeType: file.type || "image/png",
-        preview: url,
-      });
-    };
+    reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(file);
   });
 }

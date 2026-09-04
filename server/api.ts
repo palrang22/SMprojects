@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { generateVideo, omniModelFor, type GenerateOptions } from './omni.ts'
 import { generateTryOn, TRYON_MODEL_ID, type TryOnImage, type TryOnOptions } from './tryon.ts'
 import { describeConfig, type OmniConfig } from './config.ts'
+import { errorDetail } from './errors.ts'
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'error'
 
@@ -19,15 +20,44 @@ export type Job = {
   /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패/미배포 환경이면 없음. */
   downloadUrl?: string
   interactionId?: string
+  /** 장면 확장 체인 전체 길이(초). 40초 상한 표시에 쓴다 */
+  totalSeconds?: number
   error?: string
+  /** 원본 에러 전문. "에러코드 확인하기" 가 새 탭에 띄운다 */
+  errorDetail?: string
 }
 
 const MAX_BODY_BYTES = 25 * 1024 * 1024 // 이미지 몇 장까지는 받아준다
 const ALLOWED_ASPECT = new Set(['16:9', '9:16'])
-const ALLOWED_RESOLUTION = new Set(['720p', '1080p'])
+const ALLOWED_RESOLUTION = new Set(['360p', '720p', '1080p'])
+
+/** 입력 이미지 장수 상한. 문서에 명시된 값은 아니고 요청 본문 크기를 감당하려는 우리 기준이다 */
+const MAX_IMAGES = 10
+
+/** 장면 확장 누적 상한. Omni 1.1 문서 기준 한 체인은 40초를 넘길 수 없다 */
+const MAX_TOTAL_SECONDS = 40
 
 /** 로컬 단일 프로세스 전용 인메모리 잡 스토어. 서버를 재시작하면 사라진다. */
 const jobs = new Map<string, Job>()
+
+/**
+ * interactionId → 그 영상까지의 누적 길이(초).
+ *
+ * 장면 확장은 previous_interaction_id 로 앞 영상에 이어 붙이는데, 40초 상한은
+ * 체인 전체에 걸린다. 프론트만 믿으면 우회되므로 서버도 같은 판정을 한다.
+ * 잡 스토어와 같은 인메모리라 재시작하면 사라진다 — 그때는 확장이 아니라
+ * 새 영상으로 시작하게 된다.
+ */
+const chainSeconds = new Map<string, number>()
+
+/**
+ * interactionId → 그 결과 영상의 gs:// 경로.
+ *
+ * 확장은 원본 영상을 document 입력으로 넣어야 한다. 프론트는 앞 영상의
+ * interactionId 만 알고 있으므로, 서버가 여기서 실제 영상 경로로 바꿔준다.
+ * chainSeconds 와 같은 인메모리라 재시작하면 사라진다.
+ */
+const chainVideoUri = new Map<string, string>()
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -68,6 +98,9 @@ function parseOptions(raw: unknown): GenerateOptions {
   if (!prompt) throw new Error('프롬프트를 입력하세요')
 
   const images = Array.isArray(body.images) ? parseImages(body.images) : undefined
+  if (images && images.length > MAX_IMAGES) {
+    throw new Error(`사진은 최대 ${MAX_IMAGES}장까지 넣을 수 있습니다`)
+  }
 
   const aspectRatio =
     typeof body.aspectRatio === 'string' && ALLOWED_ASPECT.has(body.aspectRatio)
@@ -89,7 +122,45 @@ function parseOptions(raw: unknown): GenerateOptions {
       ? body.previousInteractionId
       : undefined
 
-  return { prompt, images, aspectRatio, resolution, durationSeconds, previousInteractionId }
+  /**
+   * 확장은 앞 영상의 gs:// 를 입력으로 넣어야 한다.
+   *
+   * previous_interaction_id 는 Vertex 에서 에러 없이 무시된다 — 2026-09-04 확인:
+   * 짧은 ID·전체 리소스 경로 둘 다 보내봤지만 결과 usage 의
+   * input_tokens_by_modality 에 video 가 아예 없었고(텍스트 4토큰만), 모델이
+   * 앞 영상과 무관한 새 영상을 처음부터 만들었다. document 로 넣으면 같은
+   * 조건에서 video 8,120 토큰이 입력에 잡힌다.
+   */
+  let extendFromVideoUri: string | undefined
+  if (previousInteractionId) {
+    const used = chainSeconds.get(previousInteractionId) ?? 0
+    const remaining = MAX_TOTAL_SECONDS - used
+    if (remaining < durationSeconds) {
+      throw new Error(
+        remaining <= 0
+          ? `이 영상은 이미 ${MAX_TOTAL_SECONDS}초에 도달해 더 늘릴 수 없습니다`
+          : `남은 길이가 ${remaining}초라 ${durationSeconds}초를 이어 붙일 수 없습니다`,
+      )
+    }
+
+    // 인메모리라 서버를 재시작하면 비어 있다. 그때는 이어 붙일 수 없다.
+    extendFromVideoUri = chainVideoUri.get(previousInteractionId)
+    if (!extendFromVideoUri) {
+      throw new Error(
+        '이어 붙일 원본 영상을 찾지 못했습니다 (서버가 재시작되었을 수 있습니다). 새 영상으로 시작해주세요',
+      )
+    }
+  }
+
+  return {
+    prompt,
+    images,
+    aspectRatio,
+    resolution,
+    durationSeconds,
+    previousInteractionId,
+    extendFromVideoUri,
+  }
 }
 
 function parseTryOnOptions(raw: unknown): TryOnOptions {
@@ -119,8 +190,19 @@ function describeError(err: unknown, config: OmniConfig): string {
     )
   }
 
+  if (/\b5\d\d\b/.test(message)) {
+    return hint(
+      'Google 쪽 일시적 오류입니다. 요청이 잘못된 게 아니니 잠시 후 다시 시도하세요.',
+    )
+  }
+
   if (/\b429\b/.test(message)) {
     return hint('쿼터를 초과했습니다. 잠시 후 다시 시도하거나 콘솔에서 한도를 확인하세요.')
+  }
+
+  // 400 중에도 요청 형식 문제는 인증과 무관하다. 엉뚱한 힌트를 주지 않는다.
+  if (/\b400\b/.test(message) && /required|not allowed|invalid|must be/i.test(message)) {
+    return hint('요청 파라미터가 API 규격과 맞지 않습니다. 위 메시지가 가리키는 필드를 확인하세요.')
   }
 
   if (/\b(400|401|403)\b/.test(message)) {
@@ -150,6 +232,13 @@ function startJob(config: OmniConfig, opts: GenerateOptions, outDir: string): Jo
   }
   jobs.set(job.id, job)
 
+  const label = `[job ${job.id.slice(0, 8)}]`
+  console.log(
+    `${label} 시작 — ${opts.durationSeconds}초 ${opts.resolution} ${opts.aspectRatio}` +
+      (opts.images?.length ? ` 사진 ${opts.images.length}장` : '') +
+      (opts.previousInteractionId ? ` 확장(${opts.previousInteractionId})` : ''),
+  )
+
   void (async () => {
     job.status = 'running'
     try {
@@ -161,12 +250,29 @@ function startJob(config: OmniConfig, opts: GenerateOptions, outDir: string): Jo
       job.videoUrl = `/output/${result.fileName}`
       job.downloadUrl = result.downloadUrl
       job.interactionId = result.interactionId
+
+      // 다음 확장 요청이 남은 길이를 판정할 수 있게 체인 누적을 기록한다
+      const previous = opts.previousInteractionId
+        ? (chainSeconds.get(opts.previousInteractionId) ?? 0)
+        : 0
+      job.totalSeconds = previous + (opts.durationSeconds ?? 0)
+      chainSeconds.set(result.interactionId, job.totalSeconds)
+      if (result.videoGcsUri) chainVideoUri.set(result.interactionId, result.videoGcsUri)
+
+      console.log(`${label} 완료 — ${result.interactionId} (총 ${job.totalSeconds}초)`)
     } catch (err) {
       job.status = 'error'
       job.stage = '실패'
       job.error = describeError(err, config)
+      job.errorDetail = errorDetail(err)
+
+      // 브라우저에만 보내면 터미널에 흔적이 남지 않아 원인 추적이 안 된다.
+      // 가공한 메시지 말고 원본 에러를 그대로 찍는다 — SDK 응답 본문이 여기 들어 있다.
+      console.error(`${label} 실패:`, err)
     } finally {
+      const took = Math.round((Date.now() - job.createdAt) / 1000)
       job.completedAt = Date.now()
+      console.log(`${label} 종료 — ${job.status}, ${took}초 소요`)
     }
   })()
 
@@ -252,6 +358,7 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
           return
         }
         const opts = parseOptions(await readBody(req))
+
         const job = startJob(config, opts, outDir)
         json(res, 202, { jobId: job.id })
         return
@@ -285,7 +392,7 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
 
       json(res, 404, { error: 'Not found' })
     } catch (err) {
-      json(res, 400, { error: describeError(err, config) })
+      json(res, 400, { error: describeError(err, config), detail: errorDetail(err) })
     }
   }
 }

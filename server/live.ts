@@ -11,6 +11,7 @@ import {
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
+import { errorDetail } from './errors.ts'
 import { getIapIdentity } from './iap.ts'
 
 /**
@@ -122,11 +123,11 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
   let session: Session | null = null
   let closed = false
 
-  const shutdown = (reason?: string, kind: 'error' | 'ended' = 'error') => {
+  const shutdown = (reason?: string, kind: 'error' | 'ended' = 'error', detail?: string) => {
     if (closed) return
     closed = true
     clearTimeout(timer)
-    if (reason) send(browser, { type: kind, message: reason })
+    if (reason) send(browser, { type: kind, message: reason, detail })
     try {
       session?.close()
     } catch {
@@ -174,12 +175,12 @@ async function handleConnection(config: OmniConfig, browser: WebSocket): Promise
         onopen: () => send(browser, { type: 'ready' }),
         onmessage: (message: LiveServerMessage) => forwardServerMessage(browser, message),
         // ErrorEvent 는 Node 전역 타입이 아니라서 SDK 콜백 시그니처에서 추론시킨다
-        onerror: (e) => shutdown(e.message || 'Live API 오류'),
+        onerror: (e) => shutdown(e.message || 'Live API 오류', 'error', errorDetail(e)),
         onclose: () => shutdown(),
       },
     })
   } catch (err) {
-    shutdown(err instanceof Error ? err.message : String(err))
+    shutdown(err instanceof Error ? err.message : String(err), 'error', errorDetail(err))
     return
   }
 
