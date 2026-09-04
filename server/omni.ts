@@ -5,7 +5,21 @@ import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
 import { createSignedUrl, downloadFromGcs } from './gcs.ts'
 
-export const MODEL_ID = 'gemini-omni-flash-preview'
+/**
+ * Gemini Omni 1.1 Flash (2026-08-27 출시).
+ *
+ * 모델 ID 가 인증 모드마다 다르다. 2026-09-04 퍼블리셔 모델 메타데이터로 확인:
+ *   gemini-omni-1.1-flash-preview → 200 (launchStage PUBLIC_PREVIEW, global 전용)
+ *   gemini-omni-1.1-flash         → 404. 이쪽은 Gemini API(키 방식) 의 ID 다
+ * 블로그와 AI Studio 문서는 뒤엣것만 적어 두었으니 그대로 베끼면 Vertex 에서 깨진다.
+ * 03 Voice Studio 의 liveModelFor 와 같은 구조다.
+ */
+export const MODEL_ID_VERTEX = 'gemini-omni-1.1-flash-preview'
+export const MODEL_ID_APIKEY = 'gemini-omni-1.1-flash'
+
+export function omniModelFor(config: OmniConfig): string {
+  return config.mode === 'vertex' ? MODEL_ID_VERTEX : MODEL_ID_APIKEY
+}
 
 export type ImageInput = { data: string; mimeType: string }
 
@@ -104,7 +118,7 @@ export async function generateVideo(
   const canUseUriDelivery = config.mode !== 'vertex' || Boolean(gcsUri)
 
   const interaction = await ai.interactions.create({
-    model: MODEL_ID,
+    model: omniModelFor(config),
     input,
     response_format: {
       type: 'video',

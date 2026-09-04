@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { generateVideo, MODEL_ID, type GenerateOptions } from './omni.ts'
+import { generateVideo, omniModelFor, type GenerateOptions } from './omni.ts'
 import { generateTryOn, TRYON_MODEL_ID, type TryOnImage, type TryOnOptions } from './tryon.ts'
 import { describeConfig, type OmniConfig } from './config.ts'
 
@@ -126,9 +126,9 @@ function describeError(err: unknown, config: OmniConfig): string {
   if (/\b(400|401|403)\b/.test(message)) {
     return config.mode === 'vertex'
       ? hint(
-          `gcloud auth application-default login 이 되어 있는지, ${config.project} 에서 ${MODEL_ID} 를 쓸 권한이 있는지 확인하세요.`,
+          `gcloud auth application-default login 이 되어 있는지, ${config.project} 에서 ${omniModelFor(config)} 를 쓸 권한이 있는지 확인하세요.`,
         )
-      : hint(`GEMINI_API_KEY 가 유효한지, 해당 키로 ${MODEL_ID} 에 접근 권한이 있는지 확인하세요.`)
+      : hint(`GEMINI_API_KEY 가 유효한지, 해당 키로 ${omniModelFor(config)} 에 접근 권한이 있는지 확인하세요.`)
   }
 
   return message
@@ -240,7 +240,7 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
           ready: config.mode !== 'unconfigured',
           mode: config.mode,
           detail: describeConfig(config),
-          model: MODEL_ID,
+          model: omniModelFor(config),
           tryonModel: TRYON_MODEL_ID,
         })
         return

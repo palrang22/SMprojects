@@ -42,7 +42,7 @@ SDK 타입만 믿지 않고 **퍼블리셔 모델 메타데이터를 직접 조�
 
 | 체험 | 모델 ID | 리전 | 상태 |
 |---|---|---|---|
-| 01 | `gemini-omni-flash-preview` | **global** | 실호출 성공 |
+| 01 | `gemini-omni-1.1-flash-preview` | **global** | 모델 ID 확인 완료, 실호출 미검증 |
 | 02 | `virtual-try-on-001` | **us-central1 전용** | GA · 메타데이터 200 |
 | 03 | `gemini-live-2.5-flash` | global · us-central1 | GA · 메타데이터 200 |
 
@@ -192,7 +192,7 @@ Cloud Run 파일시스템은 tmpfs(메모리)다. 지금처럼 GCS → 로컬 �
 
 ## 비용
 
-- 01 Omni Flash: 출력 1초당 $0.10 (5초 = $0.50)
+- 01 Omni 1.1 Flash: 720p 출력 1초당 $0.10 (5초 = $0.50). 1080p 는 약 1.5배, 4k 는 약 3배
 - 02 Virtual Try-On: 단가 미확인
 - 03 Live: 세션 시간 과금 → 3분 자동 종료를 걸어뒀다
 - **실제 생성 호출 전에 매번 확인받는다.** 설정 확인·타입체크는 무료

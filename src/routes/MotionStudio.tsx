@@ -29,6 +29,8 @@ type Health = {
   ready: boolean;
   mode: "vertex" | "apikey" | "unconfigured";
   detail: string;
+  /** 서버가 실제로 호출하는 모델 ID. Vertex 와 API 키가 서로 다르다 */
+  model?: string;
 };
 
 const ASPECT_RATIOS = ["16:9", "9:16"] as const;
@@ -179,7 +181,8 @@ export function MotionStudio() {
         </div>
         <h1>Motion Studio</h1>
         <p>
-          텍스트나 사진을 넣고 10초 이내의 영상을 만들어보세요
+          텍스트나 사진을 넣으면 움직이는 영상이 됩니다.{' '}
+          <code>{health?.model ?? "gemini-omni-1.1-flash-preview"}</code>
         </p>
       </header>
 

@@ -12,9 +12,9 @@
 
 | # | 스튜디오 | 라우트 | 모델/API | 강조색 | 상태 |
 |---|---|---|---|---|---|
-| 01 Video | **Motion Studio** | `/video` | `gemini-omni-flash-preview` | Google red | 🟡 개발 중 |
-| 02 Image | **Look Studio** | `/image` | `virtual-try-on-001` | Google blue | 🟡 개발 중 |
-| 03 Audio | **Voice Studio** | `/audio` | `gemini-live-2.5-flash` | Google yellow | 🟡 개발 중 (셸·프록시 완료, 프롬프트/컨셉 미정) |
+| 01 Video | **Motion Studio** | `/video` | `gemini-omni-1.1-flash-preview` | Google red | 🟡 개발 중 |
+| 02 Image | **Look Studio** | `/image` | Virtual Try-On | Google blue | ⬜ 자리표시자 |
+| 03 Audio | **Voice Studio** | `/audio` | Gemini Live | Google yellow | ⬜ 자리표시자 |
 
 행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것.
 
@@ -151,7 +151,10 @@ IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이�
    대신 받아주지만 Vertex 는 본인 버킷을 요구한다.
 3. **API 키를 클라이언트에 노출하지 말 것.** `VITE_` 접두사를 붙이면 번들에 박힌다.
    서버 쪽에서만 읽는다.
-4. **SDK 타입이 공식 문서보다 정확하다.** 문서는 `generationConfig.videoConfig` (camelCase)
+4. **Omni 1.1 은 모델 ID 가 인증 모드마다 다르다.** Vertex 는 `gemini-omni-1.1-flash-preview`,
+   Gemini API 키는 `gemini-omni-1.1-flash` 다. 블로그·AI Studio 문서에는 후자만 적혀 있어서
+   그대로 베끼면 Vertex 에서 404 가 난다. `server/omni.ts` 의 `omniModelFor()` 가 갈라준다.
+5. **SDK 타입이 공식 문서보다 정확하다.** 문서는 `generationConfig.videoConfig` (camelCase)
    라고 써 있지만 실제 타입은 `generation_config.video_config` (snake_case) 다.
    파라미터를 추측하지 말고 `node_modules/@google/genai/dist/genai.d.ts` 를 grep 할 것.
 
@@ -160,7 +163,9 @@ IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이�
 **회사 결제 계정으로 청구된다.** 사용자는 비용에 민감하고, 불필요한 지출을 하지 말라는
 지시를 받은 상태다.
 
-- Omni Flash: **출력 영상 1초당 $0.10** (5초 = $0.50)
+- Omni 1.1 Flash: 해상도별 출력 토큰이 다르다 (360p 1,931 / 720p 5,792 / 1080p 8,688 / 4k 17,376 토큰/초).
+  720p 기준 **1초당 $0.10** (5초 = $0.50), 1080p 는 그 1.5배.
+  UI 는 720p·1080p 만 노출한다 — 4k 는 부스에서 비용이 튀므로 열지 않았다.
 - 실제 생성 호출을 하기 전에 사용자에게 확인받을 것. 테스트로 임의 생성 금지.
 - 설정 확인·메타데이터 조회·타입체크는 무료. 여기까지는 자유롭게 해도 된다.
 - 부스는 방문자가 반복해서 누르는 환경이다. **호출 상한과 킬 스위치가 필수**
