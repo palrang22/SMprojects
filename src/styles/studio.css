@@ -210,6 +210,20 @@ code {
   white-space: nowrap;
 }
 
+/* 서명 URL 생성 실패 — "오류 보기" 로 원본 에러를 새 탭에 띄운다 */
+.qr-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+  text-align: center;
+}
+
+.qr-fail .banner-detail {
+  margin-left: 0;
+}
+
 /* ── 입력부 ─────────────────────────────────────── */
 .composer {
   display: flex;
