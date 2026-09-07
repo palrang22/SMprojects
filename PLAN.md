@@ -7,7 +7,92 @@
 
 - 스튜디오 3종: UI·실호출 검증 완료 (2026-08-26).
 - `server/index.ts` + `Dockerfile` 로 **Cloud Run 배포 완료**, IAP 콘솔 설정 완료.
-- 아래 6개가 남은 작업. 순서는 **이름 변경 → 1·2 → 4 → 5·6 → 공통** 을 권장 (뒤 작업이 새 이름·공통 컴포넌트를 쓴다).
+- 남은 작업: 아래 §QR(최우선, 권한 대기) → §1·2 → §4 → §5·6 → §공통.
+
+---
+
+## QR 공유 (서명 URL) — 최우선
+
+`DownloadQr` 가 `url` 없으면 "QR 다운로드는 준비 중이에요" 만 띄운다. 이걸 푼다. 갤러리(§4)도 서명 URL 사용.
+
+### 배경 (권한 문제 아님)
+
+- `server/gcs.ts` `createSignedUrl` → `getSignedUrl({ version: 'v4', action: 'read' })`.
+  V4 read 서명은 **GCS API 를 안 부른다** — 순수 서명 + (키 없을 때) IAM `signBlob`.
+  → **버킷 권한(`storage.*`)과 무관.** 업로드가 되는 것과 별개.
+- 로컬 `Cannot sign data without 'client_email'` = `pnpm dev` 가 사용자 개인 ADC 로 도는데
+  개인 계정엔 서명 주체가 없어 `signBlob` 경로를 못 탄다.
+
+### 권한
+
+- 배포 런타임 SA `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` 에
+  `roles/iam.serviceAccountTokenCreator` (self-bind) — **이거 하나.** → ✅ 완료 (2026-09-07)
+- `iamcredentials.googleapis.com` API 가 켜져 있어야 `signBlob` 이 먹는다 (보통 켜져 있음 — 확인만).
+
+### 코드 (2026-09-07) ✅
+
+- **impersonation** — `server/gcs.ts` `GCS_SIGNER_SA` 환경변수가 있으면 그 SA 를 impersonate 해서 서명
+  (`google-auth-library` `Impersonated`). 없으면 기본 ADC. 배포에선 비워두면 런타임 SA 로 직접 서명.
+  `.env.local` 에 설정함. `.env.example` 문서화. `pnpm add google-auth-library@9.15.1`.
+- **오류 노출** — `createSignedUrl` 이 `{ url, error }` 를 돌려준다. 서명 실패 시 원본 에러가
+  `downloadError` 로 잡(job)·tryon 응답까지 흐르고, `DownloadQr` 팝오버가 "준비 중이에요" 대신
+  **[🔎 오류 보기]** 버튼을 띄운다 → `src/lib/errorReport.ts` 로 새 탭에 원문 표시
+  (`ErrorBanner` 의 "에러코드 확인하기" 와 같은 유틸, 공유로 분리).
+
+### 남은 것
+
+- 지금은 로컬에서 QR 자리에 **[🔎 오류 보기]** 가 뜨고, 누르면
+  `SigningError: Permission 'iam.serviceAccounts.signBlob' denied` 가 새 탭에 보인다 (정상 — 아래 권한 대기).
+- [ ] **로컬** — 2026-09-07 테스트: impersonation 코드는 실행되지만
+      `Permission 'iam.serviceAccounts.signBlob' denied` → `kseungh@mz.co.kr` 계정이 SA 에
+      `roles/iam.serviceAccountTokenCreator` 가 **없다.** 관리자(선배)가 부여해야 함 (우리는 Editor):
+      ```bash
+      gcloud iam service-accounts add-iam-policy-binding \
+        smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com \
+        --member="user:kseungh@mz.co.kr" \
+        --role="roles/iam.serviceAccountTokenCreator" --project=kktae-demo --condition=None
+      ```
+      부여되면 `pnpm dev` 재시작 → Look Studio 1회 → 로그 `impersonate 합니다` + QR 버튼 확인.
+- [ ] **배포본** — self-bind(SA→SA)가 실제로 붙었으면 `GCS_SIGNER_SA` 없이 이미 동작할 것.
+      배포 후 Look Studio 1회 → QR 버튼 / 로그 `서명 URL 생성 실패` 없는지.
+  - `PERMISSION_DENIED ... signBlob` → self-bind 도 실제로 안 붙음.
+  - `Cannot sign data without 'client_email'` → Cloud Run SA attach 안 됨.
+
+---
+
+## 배포 IAM — 정리 (2026-09-07)
+
+앱이 쓰는 GCP: **Vertex(`@google/genai`) + GCS(`@google-cloud/storage`) 둘뿐.**
+
+런타임 SA `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` 현재 보유:
+`Editor` + `Cloud Run Admin` + `IAP Policy Admin` + `iam.serviceAccountTokenCreator`(self-bind).
+
+| 필요 | 커버 | 상태 |
+|---|---|---|
+| Vertex 3종 호출 | `Editor` 에 `aiplatform.*` 포함 | ✅ 동작 확인 |
+| 버킷 업로드/다운로드/목록/삭제 | `Editor` 에 `storage.objects.*` 포함 | ✅ 동작 확인 |
+| 서명 URL (`signBlob`) — QR·갤러리 | `serviceAccountTokenCreator` (Editor 엔 없음) | ✅ self-bind 완료 |
+
+→ **런타임 SA 는 더 요청할 것 없음.** `aiplatform.user`·`storage.objectUser` 는 Editor 가 이미 포함하므로 불필요.
+
+### 남은 것 하나 — 로컬 QR 테스트 (선택)
+
+`kseungh@mz.co.kr` 계정이 SA 에 `roles/iam.serviceAccountTokenCreator` 가 없어서
+로컬 `pnpm dev` + `GCS_SIGNER_SA` impersonate 가 `signBlob denied` (2026-09-07 확인).
+→ 급하지 않으면 **배포본에서 QR 확인**하면 된다 (self-bind 로 이미 될 것). 로컬도 되게 하려면:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com \
+  --member="user:kseungh@mz.co.kr" \
+  --role="roles/iam.serviceAccountTokenCreator" --project=kktae-demo --condition=None
+```
+
+### 역할 아닌 것 — 확인만
+
+- [ ] `iamcredentials.googleapis.com` API 켜짐 (signBlob) — `gcloud services list --enabled --filter=iamcredentials --project=kktae-demo`
+- [ ] Cloud Run 이 이 SA 로 도는지 — `gcloud run services describe smprojects-sh --region=asia-northeast3 --format="value(spec.template.spec.serviceAccountName)"`
+- [ ] `IAP_AUDIENCE` 환경변수가 Cloud Run 에 세팅됐는지 (`server/iap.ts`).
 
 ---
 
@@ -138,15 +223,18 @@ Motion / Look / Voice Studio 그대로.
 
 ## 공통 / 부스 준비
 
-### 동의 팝업 (`/video`·`/image` 진입 시)
+### 동의 게이트 — ✅ 완료 (2026-09-07)
 
-- [ ] `ConsentGate` — `/video`, `/image` 진입 시 모달. 동의해야 통과, 취소 시 홈.
-- [ ] **매 진입마다 표시 (D5)** — `sessionStorage` 로 기억하지 않는다. 방문객이 계속 바뀌므로.
-- 문구 **초안** (검토 필요):
-  > 이 체험에서 촬영·생성한 사진과 영상은 부스 갤러리 화면에 전시되며, **행사 종료 후 모두 삭제**됩니다.
-  > 갤러리에서 언제든 본인 결과를 바로 삭제할 수 있습니다. 동의하시면 시작하세요.
-- ⚠️ 자동 삭제 규칙은 두지 않음 (D6). "행사 종료 후 삭제" 는 **스태프 수동 작업** — §부스 체크리스트.
-  `CLAUDE.md` 의 "버킷 30일 자동 삭제 정책" 항목은 "수동 삭제" 로 정정.
+- [x] `src/components/ConsentGate.tsx` — 라우트 element 를 감싼다 (`src/App.tsx`).
+      동의 체크 → "동의하고 시작", "취소" → 홈. 동의 전엔 스튜디오를 렌더 안 함(웹캠 조기 작동 방지).
+- [x] **매 진입마다 표시 (D5)** — 라우트 마운트마다 `consented` 가 false 로 시작. `sessionStorage` 안 씀.
+      각 라우트의 `<ConsentGate>` 에 `key`(video/image/audio) 를 줘서 스튜디오 → 스튜디오 이동 시에도
+      강제 remount (안 그러면 셋이 트리 같은 위치·타입이라 React 가 상태를 유지해 게이트가 건너뛰어짐).
+      브라우저에서 video→image→audio 연속 이동 확인 완료.
+- [x] `variant="capture"` (`/video`·`/image`) — "사진·영상이 갤러리에 전시, 행사(2026-09-14) 후 폐기, 직접 삭제 가능".
+- [x] `variant="live"` (`/audio`) — "얼굴 촬영·음성 인식, 저장 안 됨, 세션 끝나면 데이터 안 남음".
+- [x] 스타일 `src/styles/hub.css` — 스튜디오 강조색 반영(`.consent-scrim.video/image/audio`), reduced-motion 대응.
+- ⚠️ `capture` 문구의 "행사 후 폐기" 는 **스태프 수동 삭제** (D6). §부스 체크리스트.
 
 ### 호출 상한 · 킬 스위치 (아직 없음 — 부스 필수)
 
@@ -159,7 +247,7 @@ Motion / Look / Voice Studio 그대로.
 ### 배포 후 검증 (실행 시 과금 — 사용자와 함께)
 
 - [ ] `/api/live` WebSocket 이 프로덕션 서버에서 실제로 붙는지 (03).
-- [ ] GCS 서명 URL 이 배포 서비스 계정으로 생성되는지 (QR 다운로드·갤러리 전제).
+- [ ] GCS 서명 URL — **§QR 참고 (권한 대기 중).**
 - [ ] `IAP_AUDIENCE` 환경변수가 Cloud Run 서비스에 설정됐는지 (없으면 `iap.ts` 가 신원 미검증).
 
 ### 필요한 에셋 (사용자 제공)
@@ -176,10 +264,11 @@ Motion / Look / Voice Studio 그대로.
 
 ### CLAUDE.md 갱신
 
-- [x] 세 스튜디오 새 이름, "이름 바꾸지 말 것" 규칙 해제.
 - [x] 테마 기본값(다크 고정), 허브 2열 레이아웃 900px — 디자인 시스템 섹션에 추가.
 - [x] "버킷 30일 자동 삭제 정책" → "수동 삭제" 로 정정.
-- [ ] `/gallery` 라우트, 동의 팝업 — 구현 완료 시 아키텍처 섹션에 추가.
+- [x] 동의 게이트(`ConsentGate`) — 아키텍처 섹션에 추가.
+- [ ] `/gallery` 라우트 — 구현 완료 시 아키텍처 섹션에 추가.
+- [ ] §QR 권한 부여되면 "GCP 설정" 섹션의 대기 항목 갱신.
 
 ---
 

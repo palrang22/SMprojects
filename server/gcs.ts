@@ -1,15 +1,48 @@
 import { Storage } from '@google-cloud/storage'
+import { GoogleAuth, Impersonated } from 'google-auth-library'
+import { errorDetail } from './errors.ts'
 
 /**
  * GCS 헬퍼 — omni.ts(다운로드)와 tryon.ts(업로드+서명)가 공유한다.
  *
- * 서명 URL(getSignedUrl)은 signBlob 권한(roles/iam.serviceAccountTokenCreator,
- * 자기 자신 대상)이 있어야 동작한다. 로컬 dev 는 사용자 개인 ADC라 이 서명이
- * 안 될 수 있다 — 실패해도 던지지 않고 null 을 돌려줘서 호출부가 QR 없이
- * 계속 진행하게 한다. 실제 동작은 배포 후 서비스 계정으로 확인한다.
+ * 업로드·다운로드는 ADC 로 바로 된다. 서명 URL(getSignedUrl V4)만 "서명 주체"가 필요하다:
+ *   - Cloud Run — attach 된 서비스 계정으로 IAM signBlob 을 호출한다 (SA 가 자기 자신에게
+ *     roles/iam.serviceAccountTokenCreator 를 가지면 됨). 이게 기본 경로.
+ *   - 로컬 dev — 사용자 개인 ADC 는 client_email 이 없어 서명을 아예 못 한다.
+ *     GCS_SIGNER_SA 를 주면 그 서비스 계정을 impersonate 해서 서명한다
+ *     (사용자 계정이 그 SA 에 대해 serviceAccountTokenCreator 를 가져야 함).
+ * 서명이 안 되면 던지지 않고 null → 호출부는 QR 없이 계속 진행한다.
  */
 
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000 // 60분 — 부스 세션 길이 감안
+
+/** 서명 전용 Storage 클라이언트. GCS_SIGNER_SA 가 있으면 impersonate, 없으면 기본 ADC. */
+let signerStoragePromise: Promise<Storage> | null = null
+
+function signerStorage(project: string): Promise<Storage> {
+  if (!signerStoragePromise) {
+    signerStoragePromise = buildSignerStorage(project).catch((err) => {
+      signerStoragePromise = null // 실패는 캐시하지 않는다 — 다음 호출에서 재시도
+      throw err
+    })
+  }
+  return signerStoragePromise
+}
+
+async function buildSignerStorage(project: string): Promise<Storage> {
+  const signerSa = process.env.GCS_SIGNER_SA?.trim()
+  if (!signerSa) return new Storage({ projectId: project })
+
+  const sourceClient = await new GoogleAuth().getClient()
+  const authClient = new Impersonated({
+    sourceClient,
+    targetPrincipal: signerSa,
+    lifetime: 3600,
+    targetScopes: ['https://www.googleapis.com/auth/devstorage.read_write'],
+  })
+  console.log(`[gcs] 서명 주체를 impersonate 합니다: ${signerSa}`)
+  return new Storage({ projectId: project, authClient })
+}
 
 export function parseGsUri(gsUri: string): { bucket: string; object: string } {
   const match = /^gs:\/\/([^/]+)\/(.+)$/.exec(gsUri)
@@ -45,28 +78,37 @@ export async function uploadBuffer(
   return destGsUri
 }
 
+export type SignedUrlResult = {
+  /** 성공 시 서명 URL, 실패 시 null */
+  url: string | null
+  /** 실패 시 원인 전문 — 클라이언트 "오류 보기" 새 탭에 띄운다 */
+  error?: string
+}
+
 /**
  * gsUri 에 대한 V4 서명 다운로드 URL을 만든다. IAP 를 거치지 않는
  * storage.googleapis.com 직행 링크라, 로그인 없는 부스 방문자도 열 수 있다.
- * signBlob 권한이 없으면(로컬 dev 등) 경고만 찍고 null.
+ * 서명 주체가 없거나(로컬 dev + GCS_SIGNER_SA 미설정) 권한이 없으면
+ * 던지지 않고 `{ url: null, error }` 를 돌려준다 — 호출부는 QR 없이 계속 진행한다.
  */
 export async function createSignedUrl(
   project: string,
   gsUri: string,
   ttlMs: number = SIGNED_URL_TTL_MS,
-): Promise<string | null> {
+): Promise<SignedUrlResult> {
   try {
     const { bucket, object } = parseGsUri(gsUri)
-    const [url] = await new Storage({ projectId: project })
+    const storage = await signerStorage(project)
+    const [url] = await storage
       .bucket(bucket)
       .file(object)
       .getSignedUrl({ version: 'v4', action: 'read', expires: Date.now() + ttlMs })
-    return url
+    return { url }
   } catch (err) {
     console.warn(
       `[gcs] 서명 URL 생성 실패 (${gsUri}) — QR 다운로드 없이 계속합니다:`,
       err instanceof Error ? err.message : err,
     )
-    return null
+    return { url: null, error: errorDetail(err) }
   }
 }

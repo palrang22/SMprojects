@@ -14,6 +14,9 @@ importers:
       '@google/genai':
         specifier: ^2.19.0
         version: 2.19.0
+      google-auth-library:
+        specifier: 9.15.1
+        version: 9.15.1
       jose:
         specifier: ^6.1.0
         version: 6.2.10

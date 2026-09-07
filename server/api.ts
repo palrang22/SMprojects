@@ -19,6 +19,8 @@ export type Job = {
   videoUrl?: string
   /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패/미배포 환경이면 없음. */
   downloadUrl?: string
+  /** 서명 실패 시 원인 전문 — 클라이언트 "오류 보기" 용 */
+  downloadError?: string
   interactionId?: string
   /** 장면 확장 체인 전체 길이(초). 40초 상한 표시에 쓴다 */
   totalSeconds?: number
@@ -249,6 +251,7 @@ function startJob(config: OmniConfig, opts: GenerateOptions, outDir: string): Jo
       job.stage = '완료'
       job.videoUrl = `/output/${result.fileName}`
       job.downloadUrl = result.downloadUrl
+      job.downloadError = result.downloadError
       job.interactionId = result.interactionId
 
       // 다음 확장 요청이 남은 길이를 판정할 수 있게 체인 누적을 기록한다

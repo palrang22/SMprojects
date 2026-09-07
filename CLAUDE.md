@@ -63,6 +63,11 @@ pnpm lint          # eslint
 - 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project kktae-demo` 로 이미 잡혀 있다.
 - 버킷은 이 프로젝트 안에 새로 만든 것. **자동 삭제 규칙은 두지 않는다** (합의 D6). 부스 결과물은
   행사 종료 후 스태프가 수동으로 비운다 — 동의 팝업이 약속한 내용이므로 체크리스트에 있다 (`PLAN.md`).
+- **런타임 서비스 계정** `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` —
+  `Editor`(Vertex·GCS 다 포함) + `serviceAccountTokenCreator`(self-bind, 서명 URL용) 보유.
+  **더 요청할 IAM 없음** (2026-09-07 정리 — `PLAN.md` §배포 IAM).
+  로컬 `pnpm dev` 는 개인 ADC(Editor)라 Vertex·스토리지는 되고, 서명만 `GCS_SIGNER_SA`
+  (`.env.local`) impersonate 로 — 내 계정이 SA 에 token creator 를 가져야 동작 (아직 없음, 배포본에선 불필요).
 - ⚠️ **`kktae-demo`는 전용 프로젝트가 아니라 선배의 기존 프로젝트다.** 이전 프로젝트
   (`gcp-a-presales-ge-20260521`) 때와 같은 원칙 적용: **우리가 만든 리소스(서비스 계정
   `smprojects-*`, 버킷 `smproject-sh`)만 건드리고, 이미 있던 다른 리소스는 절대 만지지 말 것.**
@@ -119,11 +124,13 @@ server/iap.ts           X-Goog-IAP-JWT-Assertion 서명 검증 (jose). IAP_AUDIE
 server/errors.ts        SDK 에러 원문 추출 ("에러코드 확인하기" 용)
 vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (apply: 'serve')
 
-src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용
+src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용. 스튜디오 라우트는 ConsentGate 로 감쌈
 src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 관리자 진입
+src/components/ConsentGate.tsx  스튜디오 진입 전 동의 모달 (매 진입마다, 합의 D5)
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
 src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
 src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸
+src/lib/errorReport.ts  원본 에러를 새 탭에 띄우는 유틸 (ErrorBanner·DownloadQr 공유)
 src/routes/Hub.tsx      랜딩 — 히어로 + 스튜디오 3개 카드
 src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링)
 src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기)

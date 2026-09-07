@@ -1,5 +1,6 @@
 import { createClient } from './client.ts'
 import type { OmniConfig } from './config.ts'
+import { errorDetail } from './errors.ts'
 import { createSignedUrl, uploadBuffer } from './gcs.ts'
 
 /**
@@ -31,6 +32,8 @@ export type TryOnOptions = {
 export type TryOnResultImage = TryOnImage & {
   /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 버킷 미설정/서명 실패 시 없음. */
   downloadUrl?: string
+  /** 업로드/서명 실패 시 원인 전문 — 클라이언트 "오류 보기" 용 */
+  downloadError?: string
 }
 
 export type TryOnResult = {
@@ -104,12 +107,12 @@ async function withDownloadUrls(
         const ext = img.mimeType.split('/')[1] ?? 'png'
         const gsUri = `${outputGcsUri}/looks/${stamp}-${i}.${ext}`
         await uploadBuffer(project, gsUri, Buffer.from(img.data, 'base64'), img.mimeType)
-        const downloadUrl = (await createSignedUrl(project, gsUri)) ?? undefined
-        return { ...img, downloadUrl }
+        const signed = await createSignedUrl(project, gsUri)
+        return { ...img, downloadUrl: signed.url ?? undefined, downloadError: signed.error }
       } catch (err) {
         // 업로드 자체가 실패해도(권한 등) 인라인 결과는 그대로 보여준다
         console.warn('[tryon] GCS 업로드 실패 — QR 다운로드 없이 계속합니다:', err)
-        return img
+        return { ...img, downloadError: errorDetail(err) }
       }
     }),
   )
