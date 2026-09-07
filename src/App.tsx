@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { ConsentGate } from "./components/ConsentGate.tsx";
 import { Rail } from "./components/Rail.tsx";
 import { ThemeProvider } from "./lib/ThemeProvider.tsx";
 import { Hub } from "./routes/Hub.tsx";
@@ -19,9 +20,33 @@ function Shell() {
       <div className={isHub ? "main main-split" : "main"}>
         <Routes>
           <Route path="/" element={<Hub />} />
-          <Route path="/video" element={<MotionStudio />} />
-          <Route path="/image" element={<LookStudio />} />
-          <Route path="/audio" element={<VoiceStudio />} />
+          {/* key 는 라우트마다 ConsentGate 를 강제로 새로 마운트시킨다.
+              key 가 없으면 세 라우트의 <ConsentGate> 가 트리에서 같은 위치·같은 타입이라
+              React 가 상태(consented)를 유지해서, 한 번 동의하면 다른 스튜디오는 게이트가 건너뛰어진다. */}
+          <Route
+            path="/video"
+            element={
+              <ConsentGate key="video" variant="capture" kind="video">
+                <MotionStudio />
+              </ConsentGate>
+            }
+          />
+          <Route
+            path="/image"
+            element={
+              <ConsentGate key="image" variant="capture" kind="image">
+                <LookStudio />
+              </ConsentGate>
+            }
+          />
+          <Route
+            path="/audio"
+            element={
+              <ConsentGate key="audio" variant="live" kind="audio">
+                <VoiceStudio />
+              </ConsentGate>
+            }
+          />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Hub />} />
         </Routes>

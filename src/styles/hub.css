@@ -330,3 +330,113 @@
   stroke-width: 1.6;
   transform: rotate(180deg);
 }
+
+/* ---------- 스튜디오 진입 동의 게이트 ---------- */
+.consent-scrim {
+  --accent: var(--g-blue);
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+  backdrop-filter: blur(3px);
+}
+.consent-scrim.video { --accent: var(--g-red); }
+.consent-scrim.image { --accent: var(--g-blue); }
+.consent-scrim.audio { --accent: var(--g-yellow); }
+
+.consent-card {
+  width: min(460px, 100%);
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  background: var(--ink-2);
+  padding: 30px 30px 24px;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.55);
+  animation: consent-rise 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes consent-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.consent-card h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+}
+
+.consent-body p {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--fog-2);
+  font-weight: 300;
+}
+.consent-body p:last-child { margin-bottom: 0; }
+.consent-body b { color: var(--paper); font-weight: 600; }
+
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0 22px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--ink-3);
+  font-size: 13px;
+  color: var(--fog-2);
+  cursor: pointer;
+}
+.consent-check input {
+  margin-top: 1px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.consent-actions button {
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.consent-cancel {
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--fog-2);
+}
+.consent-cancel:hover { border-color: var(--fog); color: var(--paper); }
+.consent-go {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.consent-go:disabled {
+  background: var(--ink-3);
+  border-color: var(--line-2);
+  color: var(--fog);
+  cursor: not-allowed;
+}
+.consent-actions button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .consent-card { animation: none; }
+}

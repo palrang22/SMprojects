@@ -14,6 +14,7 @@ type Job = {
   completedAt?: number;
   videoUrl?: string;
   downloadUrl?: string;
+  downloadError?: string;
   interactionId?: string;
   /** 장면 확장 체인 전체 길이(초). 서버가 계산해서 내려준다 */
   totalSeconds?: number;
@@ -27,6 +28,7 @@ type Turn = {
   prompt: string;
   videoUrl: string;
   downloadUrl?: string;
+  downloadError?: string;
   /** 이 영상까지의 누적 길이(초) */
   totalSeconds: number;
 };
@@ -148,6 +150,7 @@ export function MotionStudio() {
               prompt,
               videoUrl: next.videoUrl!,
               downloadUrl: next.downloadUrl,
+              downloadError: next.downloadError,
               totalSeconds: next.totalSeconds ?? 0,
             },
           ]);
@@ -317,7 +320,11 @@ export function MotionStudio() {
                   <span className="turn-maxed">최대 길이 도달</span>
                 )}
                 <code>{turn.interactionId}</code>
-                <DownloadQr url={turn.downloadUrl} />
+                <DownloadQr
+                  url={turn.downloadUrl}
+                  error={turn.downloadError}
+                  context="01 Motion Studio · QR"
+                />
               </div>
             </article>
           ))}

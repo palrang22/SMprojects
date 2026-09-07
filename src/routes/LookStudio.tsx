@@ -16,7 +16,12 @@ type Health = {
   detail: string;
 };
 
-type ResultImage = { data: string; mimeType: string; downloadUrl?: string };
+type ResultImage = {
+  data: string;
+  mimeType: string;
+  downloadUrl?: string;
+  downloadError?: string;
+};
 
 const dataUrl = (img: ResultImage) => `data:${img.mimeType};base64,${img.data}`;
 
@@ -30,7 +35,7 @@ const SAMPLE_PEOPLE = [
   { id: "man_3", label: "남성 3" },
 ] as const;
 
-const sampleSrc = (id: string) => `/samples/${id}.png`;
+const sampleSrc = (id: string) => `/samples/human/${id}.png`;
 
 /** 샘플 인물을 3×2 그리드로 크게 보여주는 팝업 */
 function SampleModal({
@@ -497,7 +502,11 @@ export function LookStudio() {
                 >
                   ⬇ 내 PC에 다운로드
                 </a>
-                <DownloadQr url={img.downloadUrl} />
+                <DownloadQr
+                  url={img.downloadUrl}
+                  error={img.downloadError}
+                  context="02 Look Studio · QR"
+                />
               </div>
             </article>
           ))}
