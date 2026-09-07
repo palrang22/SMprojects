@@ -87,13 +87,15 @@
 
   /* ---------- main ---------- */
   .main{min-height:100vh}
-  /* 허브(랜딩)에서만 히어로 + 패널 2열 분할 */
-  .main-split{display:grid;grid-template-columns:1.02fr 1fr}
-  @media(max-width:1080px){.main-split{grid-template-columns:1fr}}
+  /* 허브(랜딩)에서만 히어로 + 패널 2열 분할.
+     13" 노트북(OS 배율 포함 CSS 폭 ~1024~1280)에서도 2열을 유지해야 한다.
+     좌우 패딩은 clamp 로 폭에 따라 줄고, 1열 붕괴는 900px 이하에서만. */
+  .main-split{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,1fr)}
+  @media(max-width:900px){.main-split{grid-template-columns:1fr}}
 
   /* ---------- hero ---------- */
   .hero{
-    position:relative;padding:56px 60px;
+    position:relative;padding:clamp(32px,4.6vw,56px) clamp(26px,4.8vw,60px);
     border-right:1px solid var(--line);
     display:flex;flex-direction:column;
     overflow:hidden;
@@ -154,7 +156,7 @@
   .footline img{height:16px;opacity:.75}
 
   /* ---------- module panel ---------- */
-  .panel{padding:52px 52px 40px;display:flex;flex-direction:column}
+  .panel{padding:clamp(32px,4.2vw,52px) clamp(24px,4vw,52px) 40px;display:flex;flex-direction:column}
   .panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
   .panel-head .t{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--fog)}
   .panel-head .c{font-size:12px;color:var(--fog);font-variant-numeric:tabular-nums}
@@ -163,8 +165,8 @@
   .modules{display:flex;flex-direction:column;gap:16px}
 
   .mod{
-    position:relative;display:flex;align-items:center;gap:22px;
-    padding:26px 28px;border:1px solid var(--line);border-radius:18px;
+    position:relative;display:flex;align-items:center;gap:clamp(14px,1.6vw,22px);
+    padding:clamp(18px,2vw,26px) clamp(18px,2.2vw,28px);border:1px solid var(--line);border-radius:18px;
     background:linear-gradient(180deg,var(--ink-2),var(--ink-2));
     cursor:pointer;overflow:hidden;
     transition:transform .28s cubic-bezier(.2,.7,.2,1),border-color .28s,background .28s;
@@ -189,10 +191,12 @@
   }
   .mod:hover .glyph{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent)}
   .mod .glyph svg{width:27px;height:27px;stroke:var(--accent);fill:none;stroke-width:1.5}
-  .mod .txt{position:relative;z-index:1;flex:1}
+  .mod .txt{position:relative;z-index:1;flex:1;min-width:0}
   .mod .txt .en{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
   .mod .txt h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em}
-  .mod .txt p{margin:6px 0 0;font-size:13px;color:var(--fog-2);font-weight:300;line-height:1.5;max-width:42ch}
+  /* 설명 문구는 카드 폭을 그대로 쓴다. 예전엔 max-width:42ch 로 카드보다 훨씬 좁게 잘려
+     한글 문장이 어색하게 두 줄로 접혔다. 아주 넓은 화면에서만 가독성 위해 상한. */
+  .mod .txt p{margin:6px 0 0;font-size:13px;color:var(--fog-2);font-weight:300;line-height:1.5;max-width:62ch}
   .mod .txt .api{
     display:inline-flex;align-items:center;gap:7px;margin-top:12px;
     font-size:11px;color:var(--fog);letter-spacing:.03em;
@@ -227,7 +231,8 @@
   @media(prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}
     .mod,.mod .go,.mod::after{transition:none}}
 
-  @media(max-width:1080px){
+  /* 2열이 1열로 붕괴하는 지점 (.main-split 과 동일: 900px). 히어로 테두리를 오른쪽→아래로. */
+  @media(max-width:900px){
     .hero{border-right:none;border-bottom:1px solid var(--line);padding:40px 30px 46px}
     .panel{padding:40px 30px}
     .hero::after{width:360px;right:-90px;bottom:-70px}
