@@ -3,6 +3,7 @@ import { useLogo, useTheme } from "../lib/theme.ts";
 import {
   AdminIcon,
   AudioIcon,
+  GalleryIcon,
   HomeIcon,
   ImageIcon,
   MoonIcon,
@@ -40,6 +41,15 @@ export function Rail() {
       ))}
 
       <div className="spacer" />
+
+      <NavLink
+        to="/gallery"
+        title="갤러리"
+        aria-label="갤러리"
+        className={({ isActive }) => (isActive ? "ritem on" : "ritem")}
+      >
+        <GalleryIcon />
+      </NavLink>
 
       <NavLink
         to="/settings"

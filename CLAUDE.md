@@ -95,11 +95,11 @@ X-Goog-IAP-JWT-Assertion        : <서명된 JWT>
 앞의 두 개는 스푸핑 가능하다. **신뢰해야 할 것은 `X-Goog-IAP-JWT-Assertion` 서명 검증 결과다.**
 사용자별 호출 상한·로깅에 이 신원을 쓴다.
 
-### 관리자 화면 (`/settings`) 비번 게이트
+### 관리자 화면 (`/settings`·`/gallery`) 비번 게이트
 
-`src/routes/Settings.tsx` 의 `ADMIN_PASSWORD = "aprk12!"` — **브라우저에서만 비교하고
-번들에 평문으로 들어간다. 이건 의도된 것이니 서버로 옮기지 말 것.** 보안 장치가 아니라
-"실수로 들어가는 것"을 막는 덮개일 뿐이고, `VITE_` 든 아니든 env 로 옮겨도
+`src/lib/admin.ts` 의 `ADMIN_PASSWORD = "aprk12!"` (`AdminGate` 컴포넌트가 검사, `/settings`·`/gallery`
+공유) — **브라우저에서만 비교하고 번들에 평문으로 들어간다. 이건 의도된 것이니 서버로 옮기지 말 것.**
+보안 장치가 아니라 "실수로 들어가는 것"을 막는 덮개일 뿐이고, `VITE_` 든 아니든 env 로 옮겨도
 클라이언트가 검증하는 한 노출은 똑같다. 실질 접근 제어는 위 IAP 도메인 제한이 한다.
 
 - 킬 스위치·레이트리밋처럼 **정말 막아야 하는 인가 판단**은 `server/iap.ts` 의
@@ -113,22 +113,25 @@ X-Goog-IAP-JWT-Assertion        : <서명된 JWT>
 ```
 server/index.ts         프로덕션 서버 (Cloud Run). dist/ 정적 + /api/* + Live WS 를 한 프로세스로.
                         PORT 존중, 0.0.0.0 바인딩, /health(GET·HEAD), SPA 폴백, 경로 탈출 방어
-server/api.ts           API 라우트 + 인메모리 잡 스토어. dev(vite.config.ts)·배포(index.ts) 양쪽이 이 미들웨어를 공유
+server/api.ts           API 라우트 + 인메모리 잡 스토어. dev(vite.config.ts)·배포(index.ts) 양쪽이 이 미들웨어를 공유.
+                        /api/gallery (GET 목록 · DELETE 삭제) = §4 Media Gallery, 소스는 출력 버킷
 server/config.ts        인증 방식 판별 (Vertex AI ↔ API 키, 환경변수 한 줄로 전환)
 server/client.ts        인증 모드별 SDK 클라이언트 생성 (locationOverride 로 모델별 리전 분기)
 server/omni.ts          01 Motion Studio. Omni Flash 래퍼 + GCS/Files API 다운로드
 server/tryon.ts         02 Look Studio. recontextImage 래퍼 (Vertex 전용, us-central1). 동기 호출
 server/live.ts          03 Voice Studio. 브라우저 ⇄ 우리 WS ⇄ ai.live.connect() 프록시
-server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL 공유)
+server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL / gallery 목록·삭제 공유)
 server/iap.ts           X-Goog-IAP-JWT-Assertion 서명 검증 (jose). IAP_AUDIENCE 없으면 no-op
 server/errors.ts        SDK 에러 원문 추출 ("에러코드 확인하기" 용)
 vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (apply: 'serve')
 
-src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용. 스튜디오 라우트는 ConsentGate 로 감쌈
-src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 관리자 진입
+src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용. 스튜디오는 ConsentGate, /gallery 는 AdminGate 로 감쌈
+src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 갤러리·관리자 진입
 src/components/ConsentGate.tsx  스튜디오 진입 전 동의 모달 (매 진입마다, 합의 D5)
+src/components/AdminGate.tsx    관리자 비번 게이트 래퍼 (/settings·/gallery 공유). 로직은 src/lib/admin.ts
 src/components/PersonPicker.tsx  인물 입력 (샘플/촬영/업로드) — 01·02 공유
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
+src/lib/admin.ts       관리자 비번(aprk12!)·세션 판정 — §접근 제어 참고 (클라이언트 전용 덮개)
 src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
 src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸
 src/lib/errorReport.ts  원본 에러를 새 탭에 띄우는 유틸 (ErrorBanner·DownloadQr 공유)
@@ -138,7 +141,8 @@ src/routes/Hub.tsx      랜딩 — 히어로 + 스튜디오 3개 카드
 src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링) — 인물+컨셉 선택, 확장 모드는 사진 추가
 src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기) — 인물 + 샘플 의상 최대 2벌
 src/routes/VoiceStudio.tsx   03 (Gemini Live, WebSocket)
-src/routes/Settings.tsx      관리자 화면 (/settings). 비번 게이트 — §접근 제어 참고
+src/routes/Settings.tsx      관리자 화면 (/settings). AdminGate 로 감쌈 — §접근 제어 참고
+src/routes/Gallery.tsx       §4 Media Gallery (/gallery). 01·02 결과 슬라이드쇼, /api/gallery 폴링. AdminGate 뒤
 src/routes/ComingSoon.tsx    미사용. 컷라인 대비로 남겨둠
 src/styles/hub.css      시안 CSS. 디자인 토큰(:root)이 여기 있다
 src/styles/studio.css   스튜디오 UI. 위 토큰으로 재매핑해서 톤을 맞춘다

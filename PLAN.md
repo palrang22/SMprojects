@@ -152,31 +152,33 @@ Motion / Look / Voice Studio 그대로.
 
 ---
 
-## 4. Media Gallery (신규)
+## 4. Media Gallery (신규) — ✅ 코드 완료 (2026-09-07) · 배포본 실동작 확인 대기
 
 **목표:** 지금까지 사람들이 만든 **01·02 의 사진·영상**이 슬라이드쇼로 넘어가는 화면. (03 Voice Studio 는 제외 — D7)
 좌하단 레일 메뉴에서 갤러리 아이콘 → **관리자 비밀번호** 통과 후 진입.
 
-### 접근
+### 접근 ✅
 
-- 새 라우트 `/gallery`, `src/routes/Gallery.tsx`.
-- `src/components/Rail.tsx` 좌하단(관리자 아이콘 옆)에 `GalleryIcon` 추가 (`src/components/Icons.tsx` 에 아이콘 신규).
-- **관리자 게이트 재사용** — `Settings.tsx` 의 `sessionStorage["sm-admin"]` 판정을 작은 훅/컴포넌트로 빼서 `/gallery` 도 감싼다. 비번은 동일(`aprk12!`, `CLAUDE.md` §접근 제어 — 클라이언트 처리 유지).
+- [x] 새 라우트 `/gallery`, `src/routes/Gallery.tsx`.
+- [x] `src/components/Rail.tsx` 좌하단(관리자 아이콘 위)에 `GalleryIcon` 추가 (`Icons.tsx` 에 신규).
+- [x] **관리자 게이트 추출** — `src/lib/admin.ts`(비번·세션) + `src/components/AdminGate.tsx`(래퍼).
+      `Settings.tsx` 도 이걸 쓰도록 리팩터. `/gallery` 는 `App.tsx` 에서 `<AdminGate>` 로 감쌈. 비번 `aprk12!` 그대로.
 
-### 서버 (GCS 버킷 목록 조회 — 재시작·재배포와 무관하게 부스 하루 종일 누적)
+### 서버 ✅ (GCS 버킷 목록 조회 — 재시작·재배포와 무관하게 부스 하루 종일 누적)
 
-- [ ] `GET /api/gallery` — `gs://smproject-sh/output` 나열. 경로로 타입 분류:
-      `/looks/...` = 이미지(02), 그 외 = 영상(01). 각 항목에 **서명 URL**(`createSignedUrl`) + 생성시각, 최신순.
-- [ ] `DELETE /api/gallery?object=<경로>` — 버킷에서 해당 오브젝트 삭제.
-- [ ] `server/gcs.ts` 에 `listObjects(project, prefix)`, `deleteObject(project, gsUri)` 추가.
-- 두 라우트 모두 배포 환경에서만 의미 있음(로컬 dev 는 서명 URL 이 개인 ADC 라 안 될 수 있음 — `gcs.ts` 주석).
+- [x] `GET /api/gallery` — `gs://smproject-sh/output` 나열. `contentType` → 경로(`/looks/` = 이미지) 순으로 타입 분류.
+      각 항목에 **서명 URL**(`createSignedUrl`) + 생성시각, 최신순, 최대 80개.
+- [x] `DELETE /api/gallery?object=<경로>` — `output/` 밖은 거부, 버킷에서 해당 오브젝트 삭제.
+- [x] `server/gcs.ts` 에 `listObjects(project, prefixGsUri)`, `deleteObject(project, gsUri)` 추가.
+- 배포 환경에서만 채워짐(Vertex + 버킷). 로컬 dev 는 `{ items: [], note }` 만 — 서명 URL 이 개인 ADC 라 안 됨(`gcs.ts` 주석).
 
-### 프론트 (슬라이드쇼)
+### 프론트 ✅ (슬라이드쇼)
 
-- [ ] 사진 **5초**, 영상은 **영상 길이만큼** 재생 후 다음으로.
-- [ ] 좌 → 우로 **슬라이드되는 전환 애니메이션**. `prefers-reduced-motion` 이면 페이드/즉시.
-- [ ] **마우스 움직이면 하단에서 올라오는 바** — 평소 숨김, `mousemove` 시 슬라이드업. 그 안에 **[삭제]** 버튼 → `DELETE /api/gallery` 호출 후 목록에서 제거.
-- [ ] 목록 주기적 갱신(폴링) 또는 진입 시 1회 로드 — 부스 운영 중 새 결과가 쌓이므로 폴링 권장(30~60초).
+- [x] 사진 **5초**, 영상은 `onEnded` 로 다음(+ 40초 안전 타임아웃).
+- [x] 새 항목이 우측에서 **슬라이드 인**하는 전환. `prefers-reduced-motion` 이면 페이드.
+- [x] **마우스 움직이면 하단 바** 슬라이드업(3초 후 숨김). `n/총계` · 종류 · 생성시각 · **[삭제]** → `DELETE /api/gallery` 후 목록에서 제거.
+- [x] 45초 폴링. 보던 항목은 인덱스가 아니라 오브젝트 경로로 추적해 갱신 시 화면이 안 튄다.
+- [ ] **배포본 확인** — 서명 URL 로 이미지/영상이 실제로 뜨는지, 삭제가 버킷에 반영되는지 (§QR 권한과 같은 조건).
 
 ### 개인정보
 
@@ -250,7 +252,7 @@ Motion / Look / Voice Studio 그대로.
 - [x] 테마 기본값(다크 고정), 허브 2열 레이아웃 900px — 디자인 시스템 섹션에 추가.
 - [x] "버킷 30일 자동 삭제 정책" → "수동 삭제" 로 정정.
 - [x] 동의 게이트(`ConsentGate`) — 아키텍처 섹션에 추가.
-- [ ] `/gallery` 라우트 — 구현 완료 시 아키텍처 섹션에 추가.
+- [x] `/gallery` 라우트 · `AdminGate` — 아키텍처 섹션에 추가.
 - [ ] §QR 권한 부여되면 "GCP 설정" 섹션의 대기 항목 갱신.
 
 ---

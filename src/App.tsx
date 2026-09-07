@@ -1,7 +1,9 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { AdminGate } from "./components/AdminGate.tsx";
 import { ConsentGate } from "./components/ConsentGate.tsx";
 import { Rail } from "./components/Rail.tsx";
 import { ThemeProvider } from "./lib/ThemeProvider.tsx";
+import { Gallery } from "./routes/Gallery.tsx";
 import { Hub } from "./routes/Hub.tsx";
 import { LookStudio } from "./routes/LookStudio.tsx";
 import { MotionStudio } from "./routes/MotionStudio.tsx";
@@ -45,6 +47,14 @@ function Shell() {
               <ConsentGate key="audio" variant="live" kind="audio">
                 <VoiceStudio />
               </ConsentGate>
+            }
+          />
+          <Route
+            path="/gallery"
+            element={
+              <AdminGate prompt="갤러리는 관리자 전용입니다. 비밀번호를 입력하세요.">
+                <Gallery />
+              </AdminGate>
             }
           />
           <Route path="/settings" element={<Settings />} />

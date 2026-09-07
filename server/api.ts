@@ -7,6 +7,13 @@ import { generateVideo, omniModelFor, type GenerateOptions } from './omni.ts'
 import { generateTryOn, TRYON_MODEL_ID, type TryOnImage, type TryOnOptions } from './tryon.ts'
 import { describeConfig, type OmniConfig } from './config.ts'
 import { errorDetail } from './errors.ts'
+import {
+  createSignedUrl,
+  deleteObject,
+  listObjects,
+  parseGsUri,
+  type GcsObject,
+} from './gcs.ts'
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'error'
 
@@ -60,6 +67,102 @@ const chainSeconds = new Map<string, number>()
  * chainSeconds 와 같은 인메모리라 재시작하면 사라진다.
  */
 const chainVideoUri = new Map<string, string>()
+
+/**
+ * Media Gallery (§4) — 배포 버킷(gs://.../output)에 누적된 01·02 결과물을
+ * 슬라이드쇼로 보여주는 화면이 쓴다. 서버 재시작·재배포와 무관하게 부스 하루
+ * 종일 쌓인 것을 그대로 나열한다 (잡 스토어와 달리 소스가 버킷이다).
+ */
+const GALLERY_MAX = 80
+
+export type GalleryItem = {
+  /** 버킷 기준 오브젝트 경로 — 삭제 요청에 그대로 넘긴다 */
+  object: string
+  type: 'image' | 'video'
+  /** IAP 를 거치지 않는 서명 URL */
+  url: string
+  /** 생성 시각(epoch ms). 최신순 정렬용 */
+  createdAt: number
+}
+
+/** 오브젝트를 01(영상)/02(이미지)로 분류. 해당 없으면 제외 */
+function classifyObject(o: GcsObject): 'image' | 'video' | null {
+  if (o.contentType?.startsWith('image/')) return 'image'
+  if (o.contentType?.startsWith('video/')) return 'video'
+  if (/\/looks\//.test(o.name)) return 'image' // tryon.ts 가 output/looks/ 에 올린다
+  if (/\.(mp4|webm|mov|m4v)$/i.test(o.name)) return 'video'
+  return null
+}
+
+type GalleryResponse = {
+  items: GalleryItem[]
+  /** 비어 있을 때 이유를 사람이 읽는 설명 */
+  note?: string
+  /** 원본 에러 전문 — 클라이언트 "오류 보기" 새 탭용 */
+  detail?: string
+}
+
+async function listGallery(config: OmniConfig): Promise<GalleryResponse> {
+  if (config.mode !== 'vertex' || !config.outputGcsUri) {
+    return {
+      items: [],
+      note: '갤러리는 Vertex + 출력 버킷이 설정된 환경(배포본)에서만 채워집니다.',
+    }
+  }
+
+  const { project, outputGcsUri } = config
+  const { bucket } = parseGsUri(outputGcsUri)
+
+  // listObjects 가 던지면 미들웨어 catch 가 400 { error, detail } 로 내려준다
+  const all = await listObjects(project, outputGcsUri)
+  const media = all
+    .filter((o) => !o.name.endsWith('/') && classifyObject(o) !== null)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, GALLERY_MAX)
+
+  if (!media.length) {
+    return {
+      items: [],
+      note: `${outputGcsUri} 아래에 전시할 사진·영상이 아직 없습니다 (오브젝트 ${all.length}개 스캔).`,
+    }
+  }
+
+  const signed = await Promise.all(
+    media.map(async (o) => {
+      const s = await createSignedUrl(project, `gs://${bucket}/${o.name}`)
+      return { o, url: s.url, error: s.error }
+    }),
+  )
+
+  const items: GalleryItem[] = signed.flatMap(({ o, url }) =>
+    url ? [{ object: o.name, type: classifyObject(o)!, url, createdAt: o.createdAt }] : [],
+  )
+
+  // 하나도 못 만들었으면 왜인지 알려준다 (로컬은 보통 signBlob 권한 문제 — PLAN.md §QR)
+  if (!items.length) {
+    return {
+      items: [],
+      note: `사진·영상 ${media.length}개를 찾았지만 서명 URL 을 하나도 만들지 못했습니다. 로컬은 signBlob 권한이 없을 수 있습니다 (PLAN.md §QR). 배포본에서 확인하세요.`,
+      detail: signed.find((s) => s.error)?.error,
+    }
+  }
+
+  return { items }
+}
+
+async function deleteGalleryObject(config: OmniConfig, object: string): Promise<void> {
+  if (config.mode !== 'vertex' || !config.outputGcsUri) {
+    throw new Error('갤러리 삭제는 배포 환경에서만 가능합니다')
+  }
+  const { bucket, object: prefix } = parseGsUri(config.outputGcsUri)
+  const clean = object.replace(/^\/+/, '')
+  const guard = prefix.endsWith('/') ? prefix : `${prefix}/`
+  // 버킷의 output/ 밖은 손대지 못하게 막는다
+  if (!clean || clean.includes('..') || !clean.startsWith(guard)) {
+    throw new Error('허용되지 않은 오브젝트 경로입니다')
+  }
+  await deleteObject(config.project, `gs://${bucket}/${clean}`)
+}
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -375,6 +478,18 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
         }
         const opts = parseTryOnOptions(await readBody(req))
         json(res, 200, await generateTryOn(config, opts))
+        return
+      }
+
+      // ── Media Gallery (§4) ──
+      if (pathname === '/api/gallery' && req.method === 'GET') {
+        json(res, 200, await listGallery(config))
+        return
+      }
+
+      if (pathname === '/api/gallery' && req.method === 'DELETE') {
+        await deleteGalleryObject(config, url.searchParams.get('object') ?? '')
+        json(res, 200, { ok: true })
         return
       }
 

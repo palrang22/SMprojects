@@ -1352,3 +1352,118 @@ textarea:focus-visible {
 .banner-detail:hover {
   opacity: 1;
 }
+
+/* ---------- Media Gallery (§4) ---------- */
+.studio.gallery {
+  --accent: var(--g-green);
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+.gallery-msg {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--fog);
+}
+.gallery-note {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  max-width: 32rem;
+}
+
+.gallery-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.gallery-media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  animation: gallery-slide 0.5s ease;
+}
+
+@keyframes gallery-slide {
+  from {
+    transform: translateX(7%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.gallery-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.4rem;
+  font-size: 0.85rem;
+  color: #fff;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
+  transform: translateY(100%);
+  transition: transform 0.28s ease;
+}
+.gallery-bar.on {
+  transform: translateY(0);
+}
+.gallery-kind,
+.gallery-when {
+  opacity: 0.7;
+}
+.gallery-del {
+  margin-left: auto;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+.gallery-del:hover:not(:disabled) {
+  background: var(--g-red);
+  border-color: var(--g-red);
+}
+.gallery-del:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-media {
+    animation: gallery-fade 0.3s ease;
+  }
+  @keyframes gallery-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .gallery-bar {
+    transition: none;
+  }
+}

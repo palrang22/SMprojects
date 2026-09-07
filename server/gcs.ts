@@ -78,6 +78,39 @@ export async function uploadBuffer(
   return destGsUri
 }
 
+export type GcsObject = {
+  /** 버킷 기준 오브젝트 경로 (예: output/looks/123-0.png) */
+  name: string
+  /** 생성 시각(epoch ms). 메타데이터가 없으면 0 */
+  createdAt: number
+  contentType?: string
+}
+
+/**
+ * prefixGsUri(gs://bucket/prefix) 아래 오브젝트를 나열한다 (갤러리 §4).
+ * 목록 조회는 ADC(Editor 의 storage.objects.list)로 바로 된다 — 서명 주체 불필요.
+ */
+export async function listObjects(
+  project: string,
+  prefixGsUri: string,
+): Promise<GcsObject[]> {
+  const { bucket, object: prefix } = parseGsUri(prefixGsUri)
+  const [files] = await new Storage({ projectId: project })
+    .bucket(bucket)
+    .getFiles({ prefix })
+  return files.map((f) => ({
+    name: f.name,
+    createdAt: f.metadata?.timeCreated ? Date.parse(String(f.metadata.timeCreated)) : 0,
+    contentType: f.metadata?.contentType ? String(f.metadata.contentType) : undefined,
+  }))
+}
+
+/** gs://bucket/path 오브젝트를 버킷에서 삭제한다 (갤러리 삭제 버튼). */
+export async function deleteObject(project: string, gsUri: string): Promise<void> {
+  const { bucket, object } = parseGsUri(gsUri)
+  await new Storage({ projectId: project }).bucket(bucket).file(object).delete()
+}
+
 export type SignedUrlResult = {
   /** 성공 시 서명 URL, 실패 시 null */
   url: string | null
