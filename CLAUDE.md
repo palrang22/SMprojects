@@ -12,13 +12,14 @@
 
 | # | 스튜디오 | 라우트 | 모델/API | 강조색 | 상태 |
 |---|---|---|---|---|---|
-| 01 Video | **Motion Studio** | `/video` | `gemini-omni-1.1-flash-preview` | Google red | 🟡 개발 중 |
-| 02 Image | **Look Studio** | `/image` | Virtual Try-On | Google blue | ⬜ 자리표시자 |
-| 03 Audio | **Voice Studio** | `/audio` | Gemini Live | Google yellow | ⬜ 자리표시자 |
+| 01 Video | **Motion Studio** | `/video` | `gemini-omni-1.1-flash-preview` | Google red | 🟢 실호출 성공 |
+| 02 Image | **Look Studio** | `/image` | `virtual-try-on-001` (Vertex 전용, `us-central1`) | Google blue | 🟢 실호출 성공 |
+| 03 Audio | **Voice Studio** | `/audio` | `gemini-live-2.5-flash` (WS 프록시) | Google yellow | 🟢 실호출 성공 |
 
-행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것.
+세 스튜디오 모두 UI·실호출 검증 완료 (2026-08-26). 부스(2026-09-14) 전까지 할 개선 작업은 `PLAN.md` 참고.
 
-**하나씩 순서대로** 개발한다. 상세 구현 방식은 대부분 미정 — `PLAN.md` 참고.
+행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것
+(2026-09-07 에 변경 시도했다가 사용자가 원복 — 기존 이름 유지).
 
 ### 체험자 · 컨셉 방향
 
@@ -40,9 +41,11 @@
 Vite + React 19 + TypeScript, pnpm.
 
 ```bash
-pnpm dev      # 개발 서버 (API 라우트 포함)
-pnpm build    # tsc -b && vite build
-pnpm lint     # eslint
+pnpm dev           # 개발 서버 (Vite + API 라우트 + Live WS 미들웨어)
+pnpm build         # tsc -b && vite build && pnpm build:server
+pnpm build:server  # tsconfig.server.json — server/ 를 dist-server/ 로 emit
+pnpm start         # node dist-server/index.js — 배포와 동일한 프로덕션 서버
+pnpm lint          # eslint
 ```
 
 변경 후에는 `pnpm build`와 `pnpm lint`를 돌려서 통과하는지 확인할 것.
@@ -58,7 +61,8 @@ pnpm lint     # eslint
 ```
 
 - 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project kktae-demo` 로 이미 잡혀 있다.
-- 버킷은 이 프로젝트 안에 새로 만든 것. **30일 자동 삭제 정책을 걸어야 한다** (아직 미확인).
+- 버킷은 이 프로젝트 안에 새로 만든 것. **자동 삭제 규칙은 두지 않는다** (합의 D6). 부스 결과물은
+  행사 종료 후 스태프가 수동으로 비운다 — 동의 팝업이 약속한 내용이므로 체크리스트에 있다 (`PLAN.md`).
 - ⚠️ **`kktae-demo`는 전용 프로젝트가 아니라 선배의 기존 프로젝트다.** 이전 프로젝트
   (`gcp-a-presales-ge-20260521`) 때와 같은 원칙 적용: **우리가 만든 리소스(서비스 계정
   `smprojects-*`, 버킷 `smproject-sh`)만 건드리고, 이미 있던 다른 리소스는 절대 만지지 말 것.**
@@ -86,26 +90,50 @@ X-Goog-IAP-JWT-Assertion        : <서명된 JWT>
 앞의 두 개는 스푸핑 가능하다. **신뢰해야 할 것은 `X-Goog-IAP-JWT-Assertion` 서명 검증 결과다.**
 사용자별 호출 상한·로깅에 이 신원을 쓴다.
 
+### 관리자 화면 (`/settings`) 비번 게이트
+
+`src/routes/Settings.tsx` 의 `ADMIN_PASSWORD = "aprk12!"` — **브라우저에서만 비교하고
+번들에 평문으로 들어간다. 이건 의도된 것이니 서버로 옮기지 말 것.** 보안 장치가 아니라
+"실수로 들어가는 것"을 막는 덮개일 뿐이고, `VITE_` 든 아니든 env 로 옮겨도
+클라이언트가 검증하는 한 노출은 똑같다. 실질 접근 제어는 위 IAP 도메인 제한이 한다.
+
+- 킬 스위치·레이트리밋처럼 **정말 막아야 하는 인가 판단**은 `server/iap.ts` 의
+  `getIapIdentity()` (IAP JWT 검증) 로 하고, 비번 게이트에 얹지 않는다.
+
 > **GCP 콘솔 작업은 사용자가 직접 한다.** 코드/CLI 로 리소스를 만들지 말고,
 > 콘솔에서 뭘 눌러야 하는지 절차를 알려줄 것.
 
 ## 아키텍처
 
 ```
+server/index.ts         프로덕션 서버 (Cloud Run). dist/ 정적 + /api/* + Live WS 를 한 프로세스로.
+                        PORT 존중, 0.0.0.0 바인딩, /health(GET·HEAD), SPA 폴백, 경로 탈출 방어
+server/api.ts           API 라우트 + 인메모리 잡 스토어. dev(vite.config.ts)·배포(index.ts) 양쪽이 이 미들웨어를 공유
 server/config.ts        인증 방식 판별 (Vertex AI ↔ API 키, 환경변수 한 줄로 전환)
-server/omni.ts          Gemini SDK 래퍼. GCS/Files API 다운로드까지
-server/api.ts           개발용 API 라우트 + 인메모리 잡 스토어
-vite.config.ts          위 미들웨어를 dev 서버에 마운트 (apply: 'serve')
+server/client.ts        인증 모드별 SDK 클라이언트 생성 (locationOverride 로 모델별 리전 분기)
+server/omni.ts          01 Motion Studio. Omni Flash 래퍼 + GCS/Files API 다운로드
+server/tryon.ts         02 Look Studio. recontextImage 래퍼 (Vertex 전용, us-central1). 동기 호출
+server/live.ts          03 Voice Studio. 브라우저 ⇄ 우리 WS ⇄ ai.live.connect() 프록시
+server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL 공유)
+server/iap.ts           X-Goog-IAP-JWT-Assertion 서명 검증 (jose). IAP_AUDIENCE 없으면 no-op
+server/errors.ts        SDK 에러 원문 추출 ("에러코드 확인하기" 용)
+vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (apply: 'serve')
 
 src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용
-src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태)
+src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 관리자 진입
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
+src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
+src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸
 src/routes/Hub.tsx      랜딩 — 히어로 + 스튜디오 3개 카드
-src/routes/MotionStudio.tsx  체험 1 (Omni Flash)
-src/routes/ComingSoon.tsx    체험 2·3 자리표시자
+src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링)
+src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기)
+src/routes/VoiceStudio.tsx   03 (Gemini Live, WebSocket)
+src/routes/Settings.tsx      관리자 화면 (/settings). 비번 게이트 — §접근 제어 참고
+src/routes/ComingSoon.tsx    미사용. 컷라인 대비로 남겨둠
 src/styles/hub.css      시안 CSS. 디자인 토큰(:root)이 여기 있다
 src/styles/studio.css   스튜디오 UI. 위 토큰으로 재매핑해서 톤을 맞춘다
 
+Dockerfile              멀티스테이지 (deps → builder → runner). CMD node dist-server/index.js
 public/                 로고 SVG (SM CI, Google Cloud). 절대경로로 참조
 docs/design/            원본 HTML 시안 (빌드 미포함)
 docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
@@ -125,17 +153,34 @@ docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
 `.reveal.d1~d6` 는 순차 등장 애니메이션. JS 없이 CSS 만으로 동작하고
 `prefers-reduced-motion` 대응도 들어 있다.
 
+**테마**: 기본 **다크 고정**. OS 설정(`prefers-color-scheme`)은 보지 않고,
+저장값(`localStorage` `sm-theme`)이 있을 때만 그걸 쓴다. 라이트는 레일 토글로만.
+규칙은 `src/lib/theme.ts` `readInitialTheme()` 과 `index.html` 인라인 스크립트 두 곳에 동일하게.
+
+**허브 2열 레이아웃**: `.main-split` 은 `900px` 이하에서만 1열로. 그 위(13" 노트북 포함)는
+좌우 패딩을 `clamp()` 로 줄여 2열 유지.
+
 ### 잡(job) 구조를 쓰는 이유
 
 영상 생성은 수 분짜리 LRO다. HTTP 요청 하나로 기다리면 타임아웃에 걸린다.
 `POST /api/generate` 는 즉시 `jobId` 만 반환하고 프론트가 `GET /api/jobs/:id` 를 폴링한다.
-`docs/GCP-INFRA-GUIDE.md` §1.2 의 패턴. **체험 2·3번도 오래 걸리면 같은 구조로 갈 것.**
+`docs/GCP-INFRA-GUIDE.md` §1.2 의 패턴. 01 만 이 구조다 — 02 는 동기 호출(`/api/tryon`),
+03 은 WebSocket(`/api/live`) 이라 잡 스토어를 쓰지 않는다.
 
-### ⚠️ 지금은 배포 불가 상태
+### 배포
 
-`server/api.ts` 는 Vite dev 서버 전용(`apply: 'serve'`)이라 `pnpm build` 결과물에 안 들어간다.
-Cloud Run 에 올리려면 **정적 파일과 API 를 함께 서빙하는 실제 서버**가 필요하다.
-IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이다.
+정적 파일 + API + Live WS 를 한 프로세스에서 서빙하는 실제 서버(`server/index.ts`)와
+`Dockerfile` 이 있고, **Docker 로 Cloud Run 에 배포 완료 + IAP 도 콘솔에서 설정 완료** (사용자 확인).
+
+- `pnpm build` 가 `dist/`(프론트) + `dist-server/`(서버)를 만든다. `pnpm start` 로 로컬에서
+  배포와 동일하게 띄울 수 있다.
+- **배포 후에도 남은 검증** (실행하면 과금되므로 사용자와 함께):
+  `/api/live` WS 가 프로덕션 서버에서 실제로 붙는지, GCS 서명 URL 이 서비스 계정으로 동작하는지.
+- IAP 는 배포된 서비스에 직접 걸려 있다. `server/iap.ts` 가 JWT 를 검증하려면
+  `IAP_AUDIENCE` 환경변수가
+  `/projects/<PROJECT_NUMBER>/locations/<REGION>/services/<SERVICE_NAME>` 형태로 있어야 한다
+  (없으면 no-op). 지금 코드는 라우트 차단 없이 로깅만 — 실제 인가 판단(킬 스위치·레이트리밋)은
+  이 신원으로 나중에 붙인다.
 
 ### 인증 모드 전환
 
@@ -183,9 +228,21 @@ IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이�
 - 주석과 UI 문구는 한국어. 코드 식별자는 영어.
 - 검증하지 않은 것을 "됐다"고 말하지 말 것. 못 돌려본 경로는 그렇다고 명시한다.
 
+## 결정 · 합의 — `docs/consensus/`
+
+대화 중 **사용자 결정이 필요한 사항**이 나오면 `PLAN.md` 에 "미정"으로 남기지 말고
+`docs/consensus/<YYYY-MM-DD>-<주제>.md` 파일을 새로 만든다.
+
+- 질문마다 선택지를 **A / B / C …** 로 정리하고 추천안을 표시한다.
+- 각 항목에 `**답변:**` 빈 줄을 둔다. 사용자가 거기 적으면 그대로 코드·`PLAN.md`·`CLAUDE.md` 에 반영한다.
+- 파일 상단에 진행 상태(`미해결 (n/m)` → `해결됨 · 날짜`)를 적는다.
+- `PLAN.md` 본문에는 **확정된 내용만.** 미정 항목은 `합의 D3` 처럼 합의 파일 ID 로 링크만 건다.
+- 사용자는 이 파일들을 보고 답하고, 나는 그 답을 바로 읽어 반영한다.
+
 ## 참고
 
-- `PLAN.md` — 로드맵, 미정 사항, 리스크
+- `PLAN.md` — 부스 전까지 할 일 (확정된 것만)
+- `docs/consensus/` — 사용자 결정 대기/완료 목록 (위 §결정·합의)
 - `docs/GCP-INFRA-GUIDE.md` — 선배 프로젝트(`veo-dashboard`)를 분석한 인프라 가이드.
   §2 인증, §5 배포 대상, §9 장시간 작업, §12 안티패턴이 특히 유용하다.
   단 **"선배가 한 것"과 "이렇게 해라"가 섞여 있으니** 구분해서 읽을 것.
