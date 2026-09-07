@@ -114,13 +114,13 @@ X-Goog-IAP-JWT-Assertion        : <서명된 JWT>
 server/index.ts         프로덕션 서버 (Cloud Run). dist/ 정적 + /api/* + Live WS 를 한 프로세스로.
                         PORT 존중, 0.0.0.0 바인딩, /health(GET·HEAD), SPA 폴백, 경로 탈출 방어
 server/api.ts           API 라우트 + 인메모리 잡 스토어. dev(vite.config.ts)·배포(index.ts) 양쪽이 이 미들웨어를 공유.
-                        /api/gallery (GET 목록 · DELETE 삭제) = §4 Media Gallery, 소스는 출력 버킷
+                        /api/gallery (GET 목록 · DELETE 삭제) + /api/gallery/media (GCS 프록시 스트리밍, 서명 URL 안 씀) = §4
 server/config.ts        인증 방식 판별 (Vertex AI ↔ API 키, 환경변수 한 줄로 전환)
 server/client.ts        인증 모드별 SDK 클라이언트 생성 (locationOverride 로 모델별 리전 분기)
 server/omni.ts          01 Motion Studio. Omni Flash 래퍼 + GCS/Files API 다운로드
 server/tryon.ts         02 Look Studio. recontextImage 래퍼 (Vertex 전용, us-central1). 동기 호출
 server/live.ts          03 Voice Studio. 브라우저 ⇄ 우리 WS ⇄ ai.live.connect() 프록시
-server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL / gallery 목록·삭제 공유)
+server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL / gallery 목록·삭제·프록시 스트리밍)
 server/iap.ts           X-Goog-IAP-JWT-Assertion 서명 검증 (jose). IAP_AUDIENCE 없으면 no-op
 server/errors.ts        SDK 에러 원문 추출 ("에러코드 확인하기" 용)
 vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (apply: 'serve')

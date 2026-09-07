@@ -8,10 +8,11 @@ import { generateTryOn, TRYON_MODEL_ID, type TryOnImage, type TryOnOptions } fro
 import { describeConfig, type OmniConfig } from './config.ts'
 import { errorDetail } from './errors.ts'
 import {
-  createSignedUrl,
   deleteObject,
   listObjects,
+  objectReadStream,
   parseGsUri,
+  statObject,
   type GcsObject,
 } from './gcs.ts'
 
@@ -111,7 +112,6 @@ async function listGallery(config: OmniConfig): Promise<GalleryResponse> {
   }
 
   const { project, outputGcsUri } = config
-  const { bucket } = parseGsUri(outputGcsUri)
 
   // listObjects 가 던지면 미들웨어 catch 가 400 { error, detail } 로 내려준다
   const all = await listObjects(project, outputGcsUri)
@@ -127,41 +127,102 @@ async function listGallery(config: OmniConfig): Promise<GalleryResponse> {
     }
   }
 
-  const signed = await Promise.all(
-    media.map(async (o) => {
-      const s = await createSignedUrl(project, `gs://${bucket}/${o.name}`)
-      return { o, url: s.url, error: s.error }
-    }),
-  )
-
-  const items: GalleryItem[] = signed.flatMap(({ o, url }) =>
-    url ? [{ object: o.name, type: classifyObject(o)!, url, createdAt: o.createdAt }] : [],
-  )
-
-  // 하나도 못 만들었으면 왜인지 알려준다 (로컬은 보통 signBlob 권한 문제 — PLAN.md §QR)
-  if (!items.length) {
-    return {
-      items: [],
-      note: `사진·영상 ${media.length}개를 찾았지만 서명 URL 을 하나도 만들지 못했습니다. 로컬은 signBlob 권한이 없을 수 있습니다 (PLAN.md §QR). 배포본에서 확인하세요.`,
-      detail: signed.find((s) => s.error)?.error,
-    }
+  // 서명 URL 대신 서버 프록시(/api/gallery/media) 로 스트리밍한다 — 갤러리는
+  // 관리자가 IAP + AdminGate 뒤에서만 보므로 IAP 를 우회하는 서명 URL 이 필요 없다.
+  return {
+    items: media.map((o) => ({
+      object: o.name,
+      type: classifyObject(o)!,
+      url: `/api/gallery/media?object=${encodeURIComponent(o.name)}`,
+      createdAt: o.createdAt,
+    })),
   }
-
-  return { items }
 }
 
-async function deleteGalleryObject(config: OmniConfig, object: string): Promise<void> {
+/** object 가 버킷의 output/ 접두사 안에 있는지 확인하고 gs:// URI + project 로 바꾼다 */
+function resolveGalleryObject(
+  config: OmniConfig,
+  object: string,
+): { gsUri: string; project: string } {
   if (config.mode !== 'vertex' || !config.outputGcsUri) {
-    throw new Error('갤러리 삭제는 배포 환경에서만 가능합니다')
+    throw new Error('갤러리는 배포 환경에서만 사용할 수 있습니다')
   }
   const { bucket, object: prefix } = parseGsUri(config.outputGcsUri)
-  const clean = object.replace(/^\/+/, '')
+  const clean = (object ?? '').replace(/^\/+/, '')
   const guard = prefix.endsWith('/') ? prefix : `${prefix}/`
-  // 버킷의 output/ 밖은 손대지 못하게 막는다
   if (!clean || clean.includes('..') || !clean.startsWith(guard)) {
     throw new Error('허용되지 않은 오브젝트 경로입니다')
   }
-  await deleteObject(config.project, `gs://${bucket}/${clean}`)
+  return { gsUri: `gs://${bucket}/${clean}`, project: config.project }
+}
+
+async function deleteGalleryObject(config: OmniConfig, object: string): Promise<void> {
+  const { gsUri, project } = resolveGalleryObject(config, object)
+  await deleteObject(project, gsUri)
+}
+
+/** 갤러리 미디어를 GCS 에서 바로 스트리밍한다 (Range 지원 — Safari 영상 재생용). */
+async function serveGalleryMedia(
+  res: ServerResponse,
+  config: OmniConfig,
+  object: string,
+  rangeHeader: string | undefined,
+): Promise<void> {
+  let gsUri: string
+  let project: string
+  try {
+    ;({ gsUri, project } = resolveGalleryObject(config, object))
+  } catch (err) {
+    json(res, 400, { error: err instanceof Error ? err.message : String(err) })
+    return
+  }
+
+  let stat: { size: number; contentType: string }
+  try {
+    stat = await statObject(project, gsUri)
+  } catch {
+    json(res, 404, { error: '오브젝트를 찾을 수 없습니다' })
+    return
+  }
+
+  // 스트림 도중 GCS 오류(오브젝트 삭제 등)로 프로세스가 죽지 않게 막는다
+  const pipeStream = (range?: { start: number; end: number }) => {
+    const stream = objectReadStream(project, gsUri, range)
+    stream.on('error', (err) => {
+      console.warn('[gallery] 스트리밍 중단:', err instanceof Error ? err.message : err)
+      res.destroy()
+    })
+    stream.pipe(res)
+  }
+
+  const match = rangeHeader ? /bytes=(\d*)-(\d*)/.exec(rangeHeader) : null
+  if (match && stat.size) {
+    const start = match[1] ? Number(match[1]) : 0
+    const end = match[2] ? Number(match[2]) : stat.size - 1
+    if (start >= stat.size || end >= stat.size || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` })
+      res.end()
+      return
+    }
+    res.writeHead(206, {
+      'Content-Type': stat.contentType,
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'private, max-age=300',
+    })
+    pipeStream({ start, end })
+    return
+  }
+
+  const headers: Record<string, string | number> = {
+    'Content-Type': stat.contentType,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'private, max-age=300',
+  }
+  if (stat.size) headers['Content-Length'] = stat.size
+  res.writeHead(200, headers)
+  pipeStream()
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -482,6 +543,16 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
       }
 
       // ── Media Gallery (§4) ──
+      if (pathname === '/api/gallery/media' && req.method === 'GET') {
+        await serveGalleryMedia(
+          res,
+          config,
+          url.searchParams.get('object') ?? '',
+          req.headers.range,
+        )
+        return
+      }
+
       if (pathname === '/api/gallery' && req.method === 'GET') {
         json(res, 200, await listGallery(config))
         return

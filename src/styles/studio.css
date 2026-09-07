@@ -1408,6 +1408,49 @@ textarea:focus-visible {
   }
 }
 
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.24s ease,
+    background 0.16s ease;
+}
+.gallery-nav.on {
+  opacity: 0.7;
+}
+.gallery-nav:hover {
+  background: rgba(0, 0, 0, 0.68);
+  opacity: 1;
+}
+.gallery-nav.prev {
+  left: 1.2rem;
+}
+.gallery-nav.next {
+  right: 1.2rem;
+}
+.gallery-nav svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.gallery-nav.prev svg {
+  transform: rotate(180deg);
+}
+
 .gallery-bar {
   position: absolute;
   left: 0;
@@ -1451,6 +1494,69 @@ textarea:focus-visible {
   cursor: not-allowed;
 }
 
+/* 삭제 확인 — 복구 불가 안내 */
+.gallery-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+.gallery-confirm-card {
+  max-width: 22rem;
+  width: 100%;
+  padding: 1.6rem 1.5rem 1.3rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  text-align: center;
+}
+.gallery-confirm-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: var(--text-h);
+}
+.gallery-confirm-sub {
+  margin: 0 0 1.2rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.gallery-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.gallery-confirm-actions button {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+.gallery-confirm-yes {
+  background: var(--g-red);
+  color: #fff;
+}
+.gallery-confirm-yes:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.gallery-confirm-no {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-h);
+}
+.gallery-confirm-no:hover:not(:disabled) {
+  border-color: var(--text);
+}
+.gallery-confirm-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gallery-media {
     animation: gallery-fade 0.3s ease;
@@ -1463,7 +1569,8 @@ textarea:focus-visible {
       opacity: 1;
     }
   }
-  .gallery-bar {
+  .gallery-bar,
+  .gallery-nav {
     transition: none;
   }
 }

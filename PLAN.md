@@ -167,10 +167,13 @@ Motion / Look / Voice Studio 그대로.
 ### 서버 ✅ (GCS 버킷 목록 조회 — 재시작·재배포와 무관하게 부스 하루 종일 누적)
 
 - [x] `GET /api/gallery` — `gs://smproject-sh/output` 나열. `contentType` → 경로(`/looks/` = 이미지) 순으로 타입 분류.
-      각 항목에 **서명 URL**(`createSignedUrl`) + 생성시각, 최신순, 최대 80개.
+      각 항목 `url` 은 **서버 프록시 경로** `/api/gallery/media?object=…` + 생성시각, 최신순, 최대 80개.
+- [x] `GET /api/gallery/media?object=<경로>` — GCS 에서 바로 스트리밍(Range 지원). **서명 URL 안 씀.**
+      갤러리는 관리자가 IAP + AdminGate 뒤에서만 보므로 IAP 우회 서명 URL 이 불필요 → `signBlob` 권한과
+      무관하게 로컬·배포 모두 동작. (서명 URL 이 꼭 필요한 건 IAP 밖에서 열리는 QR 다운로드뿐)
 - [x] `DELETE /api/gallery?object=<경로>` — `output/` 밖은 거부, 버킷에서 해당 오브젝트 삭제.
-- [x] `server/gcs.ts` 에 `listObjects(project, prefixGsUri)`, `deleteObject(project, gsUri)` 추가.
-- 배포 환경에서만 채워짐(Vertex + 버킷). 로컬 dev 는 `{ items: [], note }` 만 — 서명 URL 이 개인 ADC 라 안 됨(`gcs.ts` 주석).
+- [x] `server/gcs.ts` 에 `listObjects` / `deleteObject` / `statObject` / `objectReadStream` 추가.
+- 목록·프록시·삭제 모두 ADC(Editor)로 동작. 로컬 dev 도 버킷에 결과물이 있으면 그대로 보인다.
 
 ### 프론트 ✅ (슬라이드쇼)
 
@@ -178,7 +181,7 @@ Motion / Look / Voice Studio 그대로.
 - [x] 새 항목이 우측에서 **슬라이드 인**하는 전환. `prefers-reduced-motion` 이면 페이드.
 - [x] **마우스 움직이면 하단 바** 슬라이드업(3초 후 숨김). `n/총계` · 종류 · 생성시각 · **[삭제]** → `DELETE /api/gallery` 후 목록에서 제거.
 - [x] 45초 폴링. 보던 항목은 인덱스가 아니라 오브젝트 경로로 추적해 갱신 시 화면이 안 튄다.
-- [ ] **배포본 확인** — 서명 URL 로 이미지/영상이 실제로 뜨는지, 삭제가 버킷에 반영되는지 (§QR 권한과 같은 조건).
+- [ ] **배포본 확인** — 프록시로 이미지/영상이 실제로 뜨는지, 삭제가 버킷에 반영되는지.
 
 ### 개인정보
 

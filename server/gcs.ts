@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import { Storage } from '@google-cloud/storage'
 import { GoogleAuth, Impersonated } from 'google-auth-library'
 import { errorDetail } from './errors.ts'
@@ -109,6 +110,38 @@ export async function listObjects(
 export async function deleteObject(project: string, gsUri: string): Promise<void> {
   const { bucket, object } = parseGsUri(gsUri)
   await new Storage({ projectId: project }).bucket(bucket).file(object).delete()
+}
+
+export type ObjectStat = { size: number; contentType: string }
+
+/**
+ * 갤러리 미디어 프록시(§4)용. 갤러리는 관리자가 앱 안(IAP + AdminGate 뒤)에서만
+ * 보므로 서명 URL 이 필요 없다 — 서버가 ADC 읽기 권한으로 GCS 에서 바로
+ * 스트리밍한다. (서명이 필요한 건 IAP 밖에서 열리는 QR 다운로드뿐)
+ */
+export async function statObject(project: string, gsUri: string): Promise<ObjectStat> {
+  const { bucket, object } = parseGsUri(gsUri)
+  const [md] = await new Storage({ projectId: project })
+    .bucket(bucket)
+    .file(object)
+    .getMetadata()
+  return {
+    size: Number(md.size ?? 0),
+    contentType: md.contentType ? String(md.contentType) : 'application/octet-stream',
+  }
+}
+
+/** gs://bucket/path 를 읽기 스트림으로 연다. range 를 주면 그 바이트 구간만 (양끝 포함). */
+export function objectReadStream(
+  project: string,
+  gsUri: string,
+  range?: { start: number; end: number },
+): Readable {
+  const { bucket, object } = parseGsUri(gsUri)
+  const file = new Storage({ projectId: project }).bucket(bucket).file(object)
+  return range
+    ? file.createReadStream({ start: range.start, end: range.end })
+    : file.createReadStream()
 }
 
 export type SignedUrlResult = {

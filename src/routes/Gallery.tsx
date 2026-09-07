@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowIcon } from "../components/Icons.tsx";
 import { openErrorReport } from "../lib/errorReport.ts";
 import "../styles/studio.css";
 
@@ -34,6 +35,8 @@ export function Gallery() {
   const [currentObject, setCurrentObject] = useState<string | null>(null);
   const [barShown, setBarShown] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  /** 삭제 확인 중인 오브젝트 경로 (null 이면 확인창 닫힘) */
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
 
   // 진입 시 1회 + 부스 운영 중 쌓이는 새 결과를 위해 주기적으로 다시 불러온다
   useEffect(() => {
@@ -82,19 +85,25 @@ export function Gallery() {
   );
   const pos = current ? items.findIndex((i) => i.object === current.object) : -1;
 
-  const next = useCallback(() => {
-    if (items.length < 2) return;
-    const at = current ? items.findIndex((i) => i.object === current.object) : -1;
-    setCurrentObject(items[(at + 1) % items.length]?.object ?? null);
-  }, [items, current]);
+  const step = useCallback(
+    (dir: 1 | -1) => {
+      if (items.length < 2) return;
+      const at = current ? items.findIndex((i) => i.object === current.object) : 0;
+      const to = (at + dir + items.length) % items.length;
+      setCurrentObject(items[to]?.object ?? null);
+    },
+    [items, current],
+  );
+  const next = useCallback(() => step(1), [step]);
+  const prev = useCallback(() => step(-1), [step]);
 
-  // 자동 넘김 — 이미지 5초, 영상은 onEnded(+ 안전 타임아웃)
+  // 자동 넘김 — 이미지 5초, 영상은 onEnded(+ 안전 타임아웃). 삭제 확인 중엔 멈춘다.
   useEffect(() => {
-    if (items.length < 2 || !current) return;
+    if (items.length < 2 || !current || confirmTarget) return;
     const ms = current.type === "image" ? IMAGE_MS : VIDEO_FALLBACK_MS;
     const t = setTimeout(next, ms);
     return () => clearTimeout(t);
-  }, [current, items.length, next]);
+  }, [current, items.length, next, confirmTarget]);
 
   // 마우스를 움직이면 하단 바가 올라오고, 멈추면 다시 숨는다
   useEffect(() => {
@@ -111,9 +120,9 @@ export function Gallery() {
     };
   }, []);
 
-  async function remove() {
-    if (!current || deleting) return;
-    const removed = current.object;
+  async function confirmDelete() {
+    const removed = confirmTarget;
+    if (!removed || deleting) return;
     const at = items.findIndex((i) => i.object === removed);
     setDeleting(true);
     try {
@@ -122,11 +131,12 @@ export function Gallery() {
       });
       const rest = items.filter((i) => i.object !== removed);
       setItems(rest);
-      setCurrentObject(rest[Math.min(at, rest.length - 1)]?.object ?? null);
+      setCurrentObject(rest[Math.min(Math.max(at, 0), rest.length - 1)]?.object ?? null);
     } catch {
       // 무시 — 다음 폴링에서 반영된다
     } finally {
       setDeleting(false);
+      setConfirmTarget(null);
     }
   }
 
@@ -179,6 +189,27 @@ export function Gallery() {
             )}
           </div>
 
+          {items.length > 1 && (
+            <>
+              <button
+                type="button"
+                className={barShown ? "gallery-nav prev on" : "gallery-nav prev"}
+                onClick={prev}
+                aria-label="이전"
+              >
+                <ArrowIcon />
+              </button>
+              <button
+                type="button"
+                className={barShown ? "gallery-nav next on" : "gallery-nav next"}
+                onClick={next}
+                aria-label="다음"
+              >
+                <ArrowIcon />
+              </button>
+            </>
+          )}
+
           <div className={barShown ? "gallery-bar on" : "gallery-bar"}>
             <span className="gallery-count">
               {pos + 1} / {items.length}
@@ -194,12 +225,49 @@ export function Gallery() {
             <button
               type="button"
               className="gallery-del"
-              onClick={() => void remove()}
+              onClick={() => current && setConfirmTarget(current.object)}
               disabled={deleting}
             >
-              {deleting ? "삭제 중…" : "삭제"}
+              삭제
             </button>
           </div>
+
+          {confirmTarget && (
+            <div
+              className="gallery-confirm"
+              role="dialog"
+              aria-modal="true"
+              onClick={() => !deleting && setConfirmTarget(null)}
+            >
+              <div
+                className="gallery-confirm-card"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="gallery-confirm-title">정말 삭제하시겠습니까?</p>
+                <p className="gallery-confirm-sub">
+                  한 번 삭제된 미디어는 복구되지 않습니다.
+                </p>
+                <div className="gallery-confirm-actions">
+                  <button
+                    type="button"
+                    className="gallery-confirm-yes"
+                    onClick={() => void confirmDelete()}
+                    disabled={deleting}
+                  >
+                    {deleting ? "삭제 중…" : "예"}
+                  </button>
+                  <button
+                    type="button"
+                    className="gallery-confirm-no"
+                    onClick={() => setConfirmTarget(null)}
+                    disabled={deleting}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </main>
