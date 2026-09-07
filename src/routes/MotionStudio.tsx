@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadQr } from "../components/DownloadQr.tsx";
-import { readAsAttachment, type Attachment } from "../lib/image.ts";
+import { PersonPicker } from "../components/PersonPicker.tsx";
+import {
+  attachmentFromUrl,
+  readAsAttachment,
+  type Attachment,
+} from "../lib/image.ts";
+import { CONCEPTS, type Concept } from "../lib/concepts.ts";
 import { ErrorBanner } from "../components/ErrorBanner.tsx";
 import "../styles/studio.css";
 
@@ -69,25 +75,130 @@ const PRICE_PER_SECOND: Record<string, number> = {
 const priceFor = (resolution: string, seconds: number) =>
   seconds * (PRICE_PER_SECOND[resolution] ?? 0.1);
 
-const EXAMPLE_PROMPTS = [
-  "네온 사인이 비에 젖은 도로에 반사되는 밤의 도쿄 골목, 카메라가 천천히 전진",
-  "유리병 안에서 작은 우주가 소용돌이치는 모습, 매크로 렌즈, 얕은 심도",
-  "눈 덮인 산맥 위로 해가 떠오르는 타임랩스, 시네마틱 와이드샷",
-];
-
 /** 길이 슬라이더 라벨 — 확장 모드면 붙인 뒤 총 길이도 같이 보여준다 */
 function extendSuffix(extendFrom: Turn | null, duration: number): string {
   if (!extendFrom) return `길이 ${duration}초`;
   return `길이 ${duration}초 (총 ${extendFrom.totalSeconds + duration}초)`;
 }
 
+/** 컨셉 선택 — 버튼을 누르면 프롬프트가 채워지고, 참조 이미지가 있으면 함께 첨부된다 */
+function ConceptPicker({
+  activeId,
+  bgImages,
+  outfitSrc,
+  outfitImage,
+  onPick,
+  onPickOutfit,
+  onClear,
+  disabled,
+}: {
+  activeId: string | null;
+  /** 컨셉 배경 참조 이미지들 (미리보기는 첫 장) */
+  bgImages: Attachment[];
+  /** 선택된 옷 사진 경로 */
+  outfitSrc: string | null;
+  /** 선택된 옷 이미지 (로드 완료된 것) */
+  outfitImage: Attachment | null;
+  onPick: (c: Concept) => void;
+  onPickOutfit: (src: string) => void;
+  onClear: () => void;
+  disabled: boolean;
+}) {
+  if (!activeId) {
+    return (
+      <div className="slot">
+        <span className="slot-label">컨셉</span>
+        <div className="person-choices">
+          {CONCEPTS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="person-choice"
+              onClick={() => onPick(c)}
+              disabled={disabled}
+            >
+              <span className="ico">{c.icon}</span>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const c = CONCEPTS.find((x) => x.id === activeId);
+  const outfits = c?.outfits ?? [];
+
+  return (
+    <div className="slot filled">
+      <span className="slot-label">컨셉 · {c?.label}</span>
+
+      {outfits.length >= 2 ? (
+        <div className="concept-outfits">
+          <p className="concept-outfits-hint">입힐 옷을 고르세요</p>
+          <div className="concept-outfit-grid">
+            {outfits.map((src, i) => (
+              <button
+                key={src}
+                type="button"
+                className={src === outfitSrc ? "concept-outfit on" : "concept-outfit"}
+                onClick={() => onPickOutfit(src)}
+                disabled={disabled}
+                aria-pressed={src === outfitSrc}
+              >
+                <img
+                  src={src}
+                  alt={`옷 ${i + 1}`}
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = "hidden";
+                  }}
+                />
+                {src === outfitSrc && <span className="garment-check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : outfitImage ? (
+        <img src={outfitImage.preview} alt="" />
+      ) : bgImages[0] ? (
+        <img src={bgImages[0].preview} alt={c?.label ?? ""} />
+      ) : (
+        <p className="garment-empty">
+          프롬프트를 채웠어요
+          <br />
+          <span>컨셉 이미지는 준비되면 함께 적용돼요</span>
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="slot-clear"
+        onClick={onClear}
+        disabled={disabled}
+        aria-label="컨셉 해제"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export function MotionStudio() {
   const [health, setHealth] = useState<Health | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [person, setPerson] = useState<Attachment | null>(null);
+  const [conceptId, setConceptId] = useState<string | null>(null);
+  /** 컨셉 배경 참조 이미지 (여러 장 가능) */
+  const [conceptImages, setConceptImages] = useState<Attachment[]>([]);
+  /** 선택한 옷 사진 경로 / 로드된 이미지 */
+  const [outfitSrc, setOutfitSrc] = useState<string | null>(null);
+  const [outfitImage, setOutfitImage] = useState<Attachment | null>(null);
+  /** 확장 모드에서 "새로 등장시킬 대상" 사진 */
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+  const [aspectRatio, setAspectRatio] = useState<string>("9:16");
   const [resolution, setResolution] = useState<string>("720p");
-  const [duration, setDuration] = useState(5);
+  const [duration, setDuration] = useState(10);
 
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +266,11 @@ export function MotionStudio() {
             },
           ]);
           setPrompt("");
+          setPerson(null);
+          setConceptId(null);
+          setConceptImages([]);
+          setOutfitSrc(null);
+          setOutfitImage(null);
           setAttachments([]);
           setExtendFrom(null);
         } else if (next.status === "error") {
@@ -190,6 +306,47 @@ export function MotionStudio() {
     }
   }, []);
 
+  /** 컨셉 버튼 — 프롬프트를 채우고, 배경 이미지·옷을 준비한다 */
+  async function pickConcept(c: Concept) {
+    setConceptId(c.id);
+    setPrompt(c.prompt);
+    setConceptImages([]);
+    setOutfitSrc(null);
+    setOutfitImage(null);
+    if (c.aspectRatio) setAspectRatio(c.aspectRatio);
+
+    // 옷이 딱 1벌이면 자동 선택. 2벌 이상은 컨셉 칸에서 고른다.
+    const outfits = c.outfits ?? [];
+    if (outfits.length === 1) void pickOutfit(outfits[0]);
+
+    // 배경 이미지들을 불러온다. 아직 파일이 없으면 그냥 건너뛴다 (에러 아님).
+    const settled = await Promise.allSettled(
+      (c.refImages ?? []).map((src) => attachmentFromUrl(src, c.label)),
+    );
+    setConceptImages(
+      settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+    );
+  }
+
+  /** 컨셉 칸에서 옷 사진을 고른다 */
+  async function pickOutfit(src: string) {
+    setOutfitSrc(src);
+    try {
+      setOutfitImage(await attachmentFromUrl(src, "옷"));
+    } catch {
+      // 옷 파일이 아직 없으면 경로만 표시 (에러 아님)
+      setOutfitImage(null);
+    }
+  }
+
+  function clearConcept() {
+    setConceptId(null);
+    setConceptImages([]);
+    setOutfitSrc(null);
+    setOutfitImage(null);
+    setPrompt("");
+  }
+
   /** 확장 모드에서 이번 호출에 쓸 수 있는 최대 길이(초) */
   const remainingSeconds = extendFrom
     ? MAX_TOTAL_SECONDS - extendFrom.totalSeconds
@@ -199,8 +356,13 @@ export function MotionStudio() {
   /** 그 영상을 이어서 늘리는 모드로 전환한다 */
   function startExtend(turn: Turn) {
     setExtendFrom(turn);
-    // 앞 장면에 쓴 사진은 비운다. 확장에서 넣는 사진은 "새로 등장시킬 대상"이라
+    // 앞 장면에 쓴 인물·컨셉은 비운다. 확장에서 넣는 사진은 "새로 등장시킬 대상"이라
     // 역할이 다르다 (문서 「Extending with reference media」).
+    setPerson(null);
+    setConceptId(null);
+    setConceptImages([]);
+    setOutfitSrc(null);
+    setOutfitImage(null);
     setAttachments([]);
     setPrompt("");
     // 남은 길이보다 긴 값이 슬라이더에 남아 있으면 서버가 거부한다
@@ -213,13 +375,21 @@ export function MotionStudio() {
     if (!prompt.trim() || busy) return;
     setError(null);
 
+    // 확장 모드 = 새 캐릭터 사진(attachments).
+    // 일반 모드 = 인물 + 옷 + 컨셉 배경 (순서 = 프롬프트 「인물이 옷을 입고 배경에서」).
+    const images = extendFrom
+      ? attachments
+      : [person, outfitImage, ...conceptImages].filter(
+          (a): a is Attachment => Boolean(a),
+        );
+
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
-          images: attachments.map(({ data, mimeType }) => ({ data, mimeType })),
+          images: images.map(({ data, mimeType }) => ({ data, mimeType })),
           aspectRatio,
           resolution,
           durationSeconds: duration,
@@ -344,50 +514,72 @@ export function MotionStudio() {
           </div>
         )}
 
-        <div className="composer-attach">
-          <span className="hint">
-            {extendFrom
-              ? "이어질 장면을 설명하세요. 사진을 넣으면 새 인물·사물을 등장시킬 수 있습니다"
-              : "텍스트만 입력하거나, 사진을 함께 올려보세요"}
-          </span>
-          <button
-            type="button"
-            className="attach-cta"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={busy || attachments.length >= MAX_IMAGES}
-          >
-            🖼 사진 추가{" "}
-            {attachments.length > 0 && `(${attachments.length}/${MAX_IMAGES})`}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              void addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-        </div>
+        {extendFrom ? (
+          <>
+            <div className="composer-attach">
+              <span className="hint">
+                이어질 장면을 설명하세요. 사진을 넣으면 새 인물·사물을 등장시킬 수 있습니다
+              </span>
+              <button
+                type="button"
+                className="attach-cta"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || attachments.length >= MAX_IMAGES}
+              >
+                🖼 사진 추가{" "}
+                {attachments.length > 0 && `(${attachments.length}/${MAX_IMAGES})`}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => {
+                  void addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </div>
 
-        {attachments.length > 0 && (
-          <div className="attachments">
-            {attachments.map((a) => (
-              <div key={a.id} className="attachment">
-                <img src={a.preview} alt={a.name} />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAttachments((p) => p.filter((x) => x.id !== a.id))
-                  }
-                  aria-label={`${a.name} 제거`}
-                >
-                  ✕
-                </button>
+            {attachments.length > 0 && (
+              <div className="attachments">
+                {attachments.map((a) => (
+                  <div key={a.id} className="attachment">
+                    <img src={a.preview} alt={a.name} />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachments((p) => p.filter((x) => x.id !== a.id))
+                      }
+                      aria-label={`${a.name} 제거`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+          </>
+        ) : (
+          <div className="slots">
+            <PersonPicker
+              value={person}
+              onPick={setPerson}
+              onClear={() => setPerson(null)}
+              disabled={busy}
+            />
+            <span className="slot-plus" aria-hidden="true">+</span>
+            <ConceptPicker
+              activeId={conceptId}
+              bgImages={conceptImages}
+              outfitSrc={outfitSrc}
+              outfitImage={outfitImage}
+              onPick={(c) => void pickConcept(c)}
+              onPickOutfit={(src) => void pickOutfit(src)}
+              onClear={clearConcept}
+              disabled={busy}
+            />
           </div>
         )}
 
@@ -397,20 +589,10 @@ export function MotionStudio() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
           }}
-          placeholder={extendFrom ? "이어서 어떤 장면이 나올지 설명하세요." : "만들고 싶은 영상을 설명하세요."}
+          placeholder={extendFrom ? "이어서 어떤 장면이 나올지 설명하세요." : "컨셉을 고르거나, 직접 입력하세요."}
           rows={3}
           disabled={busy}
         />
-
-        {!prompt && (
-          <div className="examples">
-            {EXAMPLE_PROMPTS.map((ex) => (
-              <button key={ex} type="button" onClick={() => setPrompt(ex)}>
-                {ex}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="controls">
           <label>

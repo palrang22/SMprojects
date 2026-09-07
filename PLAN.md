@@ -106,55 +106,38 @@ gcloud iam service-accounts add-iam-policy-binding \
 
 ## 1. Motion Studio (`/video`) — 숏폼
 
-**목표:** 프롬프트를 직접 짜지 않아도, **[인물 선택] + [컨셉 선택]** 두 단계로
-검증·정제된 프롬프트와 참조 이미지가 자동 입력되어 쇼츠가 나온다.
+**흐름:** [인물 선택] + [컨셉 선택] 2단계. 컨셉 버튼 → 정제 프롬프트 자동 채움(D3) +
+그 컨셉의 배경·옷이 붙는다. 옷이 2벌 이상이면 컨셉 칸에서 고른다 (합의 `motion-studio-outfit` D1).
 
-### 흐름
+### 구조 ✅ 완료 (2026-09-07)
 
-1. **인물 선택** — 별도 위젯. 샘플 6명(`woman_1~3`, `man_1~3`, `public/samples/`) + **웹캠 촬영** + (파일 업로드).
-   → `src/routes/LookStudio.tsx` 의 `PersonPicker` / `SampleModal` 을 `src/components/PersonPicker.tsx` 로 **추출해 공유**.
-2. **컨셉 선택** — 별도 위젯(신규). 컨셉 하나 = `{ id, label, prompt(정제됨), refImage }`.
-   - 시작 컨셉: **놀이공원** (기존) / **시상식** / **레드카펫**. 이후 항목 추가만으로 확장.
-   - **버튼을 누르면 정제 프롬프트가 자유 입력창에 자동으로 채워진다 (D3).** 사용자가 이어서 손볼 수 있다.
-     동시에 그 컨셉의 참조 이미지가 인물 사진과 함께 첨부된다.
-3. **생성** — `POST /api/generate` 에 `images: [인물사진, 컨셉참조이미지]`, `prompt: (자동채움된)프롬프트`.
-   서버(`server/api.ts` `parseOptions`)는 이미 다중 이미지·프롬프트를 받으므로 **API 변경 불필요**.
+- [x] `PersonPicker` → `src/components/PersonPicker.tsx` 로 추출, Motion·Look 공유. LookStudio 로컬 복사본 제거.
+- [x] `src/lib/concepts.ts` — `CONCEPTS` (놀이공원 / 콘서트 / 레드카펫).
+      `{ id, label, prompt, refImages?: string[], outfits?: string[], aspectRatio? }`.
+      `prompt` 는 **사용자 작성 — 건드리지 않음.**
+- [x] `MotionStudio.tsx` — 일반 모드 = `[PersonPicker] + [ConceptPicker]` (`.slots` 2열). 확장 모드는 기존 `사진 추가` 유지.
+      기본값 **9:16 · 720p · 10초** (D4). 해상도·길이 컨트롤 그대로.
+- [x] `ConceptPicker` — 컨셉 선택 시 배경(`refImages`) 로드 + 옷(`outfits`): 1벌 자동 / 2벌+ 는 썸네일 그리드에서 선택.
+- [x] 생성 요청 `images = [인물, 옷, ...배경들].filter(Boolean)`. 서버 변경 없음.
+- [x] 놀이공원은 사용자가 넣은 `motion-studio/amusement-park/` 파일로 연결. 브라우저 확인 완료.
 
-### 컨트롤 (D4)
+### 남은 것
 
-- 기본값 **720p · 10초**. 하단 선택창은 지금 구조 유지: 해상도 `360p/720p/1080p`, 길이 슬라이더.
-- 길이 슬라이더 하한은 **3초** (`MIN_DURATION` — Omni 하한), 상한 10초. 비율은 쇼츠라 `9:16` 기본.
-- 비용 표시(`priceFor`) 유지. 720p·10초 ≈ **$1.00/생성** — §공통 호출 상한이 특히 중요.
-
-### 작업
-
-- [ ] `PersonPicker` 공유 컴포넌트 추출 (Motion·Look 둘 다 사용)
-- [ ] `ConceptPicker` 컴포넌트 + 컨셉 정의 파일 (`src/lib/concepts.ts`)
-- [ ] `MotionStudio.tsx` — 기존 `EXAMPLE_PROMPTS` 자리를 `ConceptPicker` 로 교체.
-      자유 입력 textarea·해상도·길이 컨트롤은 유지, 기본값만 720p/10초로.
-- [ ] 컨셉 선택 시 프롬프트 자동 채움 + 참조 이미지 첨부 로직 (`attachmentFromUrl`, `src/lib/image.ts` 재사용)
-
-### 리스크
-
-- ⚠️ **인물 사진 + 컨셉 배경 이미지 2장을 함께 넣었을 때** "그 인물이 그 무대/레드카펫에 선" 영상이
-  나오는지는 **실호출로 검증 안 됨.** 컨셉별 1회씩 360p 로 테스트 필요 (비용 발생 — 사용자 확인 후).
-- 정제된 컨셉 프롬프트 문구는 내가 초안 작성 후 사용자 검토, 또는 사용자 제공 *(→ 필요한 에셋)*.
+- [ ] **콘서트 · 레드카펫 에셋** — `public/samples/motion-studio/concert/` · `red-carpet/` 폴더는 있으나 비어 있음.
+      배경·옷 파일 넣고 `concepts.ts` 의 `refImages` / `outfits` 배열에 경로 추가.
+      (파일 명명: 배경 `*-background.png`, 옷 `g-*` / `b-*` 등 — 사용자 규칙)
+- [ ] ⚠️ **실호출 검증 안 됨** — 인물 + 옷 + 배경 여러 장을 넣었을 때 의도대로 나오는지.
+      컨셉별 1회 360p 테스트 필요 (비용 — 사용자 확인 후).
 
 ---
 
-## 2. Look Studio (`/image`) — 옷 입히기
+## 2. Look Studio (`/image`) — 옷 입히기 · ✅ 완료 (2026-09-07)
 
-**목표:** 옷을 업로드하는 대신 **여러 샘플 의상에서 고른다.** 상·하의 조합을 위해 **최대 2벌** 선택.
-
-### 작업
-
-- [ ] **샘플 의상 그리드** — 스크롤되는 리스트에서 선택. 각 항목 = `{ id, label, category: 'top'|'bottom'|'dress', image }`.
-      의상 이미지는 `public/samples/garments/` *(→ 필요한 에셋)*.
-- [ ] **최대 2벌 선택** — 서버 `parseTryOnOptions`(`server/api.ts`)가 이미 `products.slice(0, 2)` 로 2장까지 받는다.
-      프론트만 1장 → 2장 전송으로 확장. `dress` 는 1벌만.
-- [ ] **인물 선택에 웹캠 촬영 추가** — §1 에서 추출한 공유 `PersonPicker` 사용 (이미 LookStudio 에 카메라 코드 있음, 공유로 정리).
-- [ ] 기존 업로드 슬롯(`Slot`)·"이 사진으로 계속하기" 체이닝은 유지.
-- UI 골격은 §1(Motion Studio)과 동일하게 맞춘다 (사용자 확인).
+- [x] **샘플 의상** — 폴더별 섹션(`public/samples/look-studio/<섹션>/`), 세로 스크롤. 데이터는 `src/lib/garments.ts` `GARMENT_SECTIONS`.
+- [x] **최대 2벌** — `Picked[]` 상태, 서버로 `products` 배열 전송 (`products.slice(0,2)` 이미 지원). `직접 올리기`도 유지.
+- [x] **인물 선택** — 공유 `PersonPicker` (웹캠 촬영 포함).
+- [x] "이 사진으로 계속하기" 체이닝 유지.
+- [ ] 문구/라벨은 사용자가 조정 (`garments.ts`, `LookStudio.tsx`).
 
 ### 참고
 
@@ -252,10 +235,10 @@ Motion / Look / Voice Studio 그대로.
 
 ### 필요한 에셋 (사용자 제공)
 
-- **Look Studio 샘플 의상** — 상의/하의/원피스 제품컷 여러 벌 → `public/samples/garments/`. (현재 없음)
-- **Motion Studio 컨셉 참조 이미지** — 놀이공원 / 시상식 / 레드카펫 배경·무대 → `public/samples/concepts/`.
-- **정제된 컨셉 프롬프트** — 내가 초안 작성 후 검토, 또는 사용자 제공.
-- (선택) 최적화된 샘플 인물 이미지 (현 7MB PNG 대체).
+- ~~Look Studio 샘플 의상~~ → `public/samples/look-studio/` 에 들어옴. ✅
+- **Motion Studio 컨셉 참조 이미지** — `public/samples/motion-studio/themepark.png` / `awards.png` / `redcarpet.png`. (현재 없음 — 없어도 프롬프트만 동작)
+- **`src/lib/concepts.ts` 프롬프트 문구** — 내 초안 상태, 검토·수정 필요.
+- (선택) 샘플 이미지 최적화 — `human/` 는 5~8MB, `look-studio/` 는 5~8MB. webp/리사이즈하면 로딩 빨라짐.
 
 ### 부스 당일/종료 체크리스트
 

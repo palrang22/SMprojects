@@ -127,13 +127,16 @@ vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (
 src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용. 스튜디오 라우트는 ConsentGate 로 감쌈
 src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 관리자 진입
 src/components/ConsentGate.tsx  스튜디오 진입 전 동의 모달 (매 진입마다, 합의 D5)
+src/components/PersonPicker.tsx  인물 입력 (샘플/촬영/업로드) — 01·02 공유
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
 src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
 src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸
 src/lib/errorReport.ts  원본 에러를 새 탭에 띄우는 유틸 (ErrorBanner·DownloadQr 공유)
+src/lib/concepts.ts    01 컨셉 (버튼 → prompt 자동 채움 + 배경 refImages + 옷 outfits). 시나리오는 시안, 프롬프트 문구는 Omni 1.1 prompt guide 에 맞춰 작성 (규칙은 파일 상단 주석 — 영어·<IMAGE_REF_N> 태그·타임코드)
+src/lib/garments.ts    02 샘플 의상 (폴더별 섹션). public/samples/look-studio/
 src/routes/Hub.tsx      랜딩 — 히어로 + 스튜디오 3개 카드
-src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링)
-src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기)
+src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링) — 인물+컨셉 선택, 확장 모드는 사진 추가
+src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기) — 인물 + 샘플 의상 최대 2벌
 src/routes/VoiceStudio.tsx   03 (Gemini Live, WebSocket)
 src/routes/Settings.tsx      관리자 화면 (/settings). 비번 게이트 — §접근 제어 참고
 src/routes/ComingSoon.tsx    미사용. 컷라인 대비로 남겨둠
