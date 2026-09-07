@@ -88,7 +88,6 @@ In one continuous slow-motion shot, the person from <IMAGE_REF_0> stands center 
 Keep the face and hairstyle from <IMAGE_REF_0> identical in every frame. Photorealistic, saturated concert color, volumetric haze, shallow depth of field.
 Audio: a massive crowd cheering and chanting, a driving live band, applause swelling. No dialogue or voiceover.
 No on-screen text, captions, subtitles or watermarks.`,
-    // public/samples/motion-studio/concert/ 에 배경·옷 파일을 넣고 아래에 경로 추가
     refImages: [`${dir}/concert/concert-hall.png`],
     outfits: [],
     aspectRatio: "9:16",
