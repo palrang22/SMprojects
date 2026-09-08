@@ -187,22 +187,22 @@ code {
   max-width: calc(100vw - 2rem);
 }
 
-/* 좁은 화면에서 300px QR 이 뷰포트를 넘지 않게 축소 */
+/* 좁은 화면에서 320px QR 이 뷰포트를 넘지 않게 축소 (260px 까지는 디코딩 확인됨) */
 @media (max-width: 420px) {
   .qr-canvas,
   .qr-canvas canvas,
   .qr-popover .qr-loading {
-    width: 240px !important;
-    height: 240px !important;
+    width: 260px !important;
+    height: 260px !important;
     min-width: 0;
   }
 }
 
-/* qr-code-styling 이 canvas 를 여기 append 한다. 생성은 2배 해상도(600px)로
-   뜨고 표시만 300px 로 줄여 레티나에서도 또렷하게. 흰 배경 + 패딩은 quiet zone. */
+/* qr-code-styling 이 canvas 를 여기 append 한다. 생성은 2배 해상도(640px)로
+   뜨고 표시만 320px 로 줄여 레티나에서도 또렷하게. 흰 배경 + 패딩은 quiet zone. */
 .qr-canvas {
-  width: 300px;
-  height: 300px;
+  width: 320px;
+  height: 320px;
   border-radius: 8px;
   background: #fff;
   padding: 8px;
@@ -216,13 +216,13 @@ code {
 }
 
 .qr-canvas canvas {
-  width: 300px !important;
-  height: 300px !important;
+  width: 320px !important;
+  height: 320px !important;
   display: block;
 }
 
 .qr-popover .qr-loading {
-  min-width: 300px;
+  min-width: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1420,21 +1420,62 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* 크로스페이드 레이어 — 스택으로 겹쳐두고 앞 레이어만 페이드 인 */
+.gallery-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: opacity, transform;
+}
+.gallery-layer.back {
+  z-index: 1;
+  animation: gallery-out 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.gallery-layer.front {
+  z-index: 2;
+  animation: gallery-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes gallery-in {
+  from {
+    opacity: 0;
+    transform: scale(1.035);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes gallery-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
 .gallery-media {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  animation: gallery-slide 0.5s ease;
 }
 
-@keyframes gallery-slide {
+/* 정지 이미지엔 느린 켄번스 드리프트 — 전시대에서 "살아있는" 느낌.
+   12s 로 잡아 노출 시간(IMAGE_MS 5s) 안에 끝나지 않으므로 튐 없음. 영상엔 안 건다.
+   front/back 공통 선택자 — 떠나는 이미지도 페이드 도중 드리프트를 이어간다(스냅 방지). */
+.gallery-layer img.gallery-media {
+  animation: gallery-kenburns 12s ease-out forwards;
+}
+@keyframes gallery-kenburns {
   from {
-    transform: translateX(7%);
-    opacity: 0;
+    transform: scale(1) translateY(0);
   }
   to {
-    transform: translateX(0);
-    opacity: 1;
+    transform: scale(1.09) translateY(-1.8%);
   }
 }
 
@@ -1588,8 +1629,14 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gallery-media {
-    animation: gallery-fade 0.3s ease;
+  .gallery-layer.front {
+    animation: gallery-fade 0.3s ease forwards;
+  }
+  .gallery-layer.back {
+    animation: gallery-fade 0.3s ease reverse forwards;
+  }
+  .gallery-layer img.gallery-media {
+    animation: none;
   }
   @keyframes gallery-fade {
     from {

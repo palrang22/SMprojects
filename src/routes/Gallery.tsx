@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type AnimationEvent } from "react";
 import { ArrowIcon } from "../components/Icons.tsx";
 import { openErrorReport } from "../lib/errorReport.ts";
 import "../styles/studio.css";
@@ -85,6 +85,25 @@ export function Gallery() {
   );
   const pos = current ? items.findIndex((i) => i.object === current.object) : -1;
 
+  // 크로스페이드용 레이어 스택. 항상 [떠나는 것?, 현재] 최대 2장.
+  // 현재가 바뀌면 새 레이어를 앞에 얹고, 전환이 끝나면(settle) 뒤 레이어를 버린다.
+  // current 변화에 맞춰 렌더 중 조정 — effect 안 setState 를 피한다 (React 권장 패턴).
+  const [layers, setLayers] = useState<GalleryItem[]>([]);
+  const [shownObject, setShownObject] = useState<string | null>(null);
+  if (current && current.object !== shownObject) {
+    setShownObject(current.object);
+    setLayers((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.object === current.object) return prev;
+      return last ? [last, current] : [current];
+    });
+  }
+  const settle = useCallback((e: AnimationEvent) => {
+    // 레이어 자신의 크로스페이드가 끝났을 때만 — 안쪽 미디어의 켄번스는 무시
+    if (e.target !== e.currentTarget) return;
+    setLayers((prev) => prev.slice(-1));
+  }, []);
+
   const step = useCallback(
     (dir: 1 | -1) => {
       if (items.length < 2) return;
@@ -168,25 +187,36 @@ export function Gallery() {
         </div>
       ) : (
         <>
-          <div className="gallery-stage" key={current?.object ?? "empty"}>
-            {current?.type === "video" ? (
-              <video
-                className="gallery-media"
-                src={current.url}
-                autoPlay
-                muted
-                playsInline
-                onEnded={next}
-                onError={next}
-              />
-            ) : (
-              <img
-                className="gallery-media"
-                src={current?.url}
-                alt=""
-                onError={next}
-              />
-            )}
+          <div className="gallery-stage">
+            {layers.map((item, i) => {
+              const front = i === layers.length - 1;
+              return (
+                <div
+                  key={item.object}
+                  className={`gallery-layer ${front ? "front" : "back"}`}
+                  onAnimationEnd={front ? settle : undefined}
+                >
+                  {item.type === "video" ? (
+                    <video
+                      className="gallery-media"
+                      src={item.url}
+                      autoPlay
+                      muted
+                      playsInline
+                      onEnded={front ? next : undefined}
+                      onError={front ? next : undefined}
+                    />
+                  ) : (
+                    <img
+                      className="gallery-media"
+                      src={item.url}
+                      alt=""
+                      onError={front ? next : undefined}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {items.length > 1 && (
