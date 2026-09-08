@@ -12,7 +12,7 @@ import {
  * Look Studio(02)·Motion Studio(01) 가 공유한다.
  */
 
-/** 샘플 인물 — 파일은 public/samples/human/<id>.png 에 둔다 (3열 × 2행) */
+/** 샘플 인물 — 파일은 public/samples/human/<id>.webp 에 둔다 (3열 × 2행) */
 const SAMPLE_PEOPLE = [
   { id: "woman_1", label: "여성 1" },
   { id: "woman_2", label: "여성 2" },
@@ -22,7 +22,7 @@ const SAMPLE_PEOPLE = [
   { id: "man_3", label: "남성 3" },
 ] as const;
 
-const sampleSrc = (id: string) => `/samples/human/${id}.png`;
+const sampleSrc = (id: string) => `/samples/human/${id}.webp`;
 
 /** 샘플 인물을 3×2 그리드로 크게 보여주는 팝업 */
 function SampleModal({
@@ -47,9 +47,9 @@ function SampleModal({
     setErr(null);
     setLoadingId(id);
     try {
-      onPick(await attachmentFromUrl(sampleSrc(id), `${label}.png`));
+      onPick(await attachmentFromUrl(sampleSrc(id), `${label}.webp`));
     } catch {
-      setErr(`${label} 샘플을 불러오지 못했습니다 — public/samples/human/${id}.png 를 확인하세요`);
+      setErr(`${label} 샘플을 불러오지 못했습니다 — public/samples/human/${id}.webp 를 확인하세요`);
       setLoadingId(null);
     }
   }
@@ -86,6 +86,8 @@ function SampleModal({
               <img
                 src={sampleSrc(s.id)}
                 alt={s.label}
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
                   e.currentTarget.style.visibility = "hidden";
                 }}

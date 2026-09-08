@@ -184,24 +184,54 @@ code {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow);
+  max-width: calc(100vw - 2rem);
 }
 
-.qr-popover img {
-  width: 140px;
-  height: 140px;
-  border-radius: 6px;
+/* 좁은 화면에서 300px QR 이 뷰포트를 넘지 않게 축소 */
+@media (max-width: 420px) {
+  .qr-canvas,
+  .qr-canvas canvas,
+  .qr-popover .qr-loading {
+    width: 240px !important;
+    height: 240px !important;
+    min-width: 0;
+  }
+}
+
+/* qr-code-styling 이 canvas 를 여기 append 한다. 생성은 2배 해상도(600px)로
+   뜨고 표시만 300px 로 줄여 레티나에서도 또렷하게. 흰 배경 + 패딩은 quiet zone. */
+.qr-canvas {
+  width: 300px;
+  height: 300px;
+  border-radius: 8px;
   background: #fff;
-  padding: 6px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-canvas[data-status="rendering"] {
+  opacity: 0.4;
+}
+
+.qr-canvas canvas {
+  width: 300px !important;
+  height: 300px !important;
+  display: block;
 }
 
 .qr-popover .qr-loading {
-  width: 140px;
-  height: 140px;
+  min-width: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.78rem;
   opacity: 0.6;
+}
+
+.qr-popover .qr-save {
+  margin-left: 0;
 }
 
 .qr-popover span:not(.qr-loading) {

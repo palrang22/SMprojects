@@ -131,11 +131,11 @@ function ConceptPicker({
 
   return (
     <div className="slot filled">
-      <span className="slot-label">컨셉 · {c?.label}</span>
+      <span className="slot-label">{c?.label}</span>
 
       {outfits.length >= 2 ? (
         <div className="concept-outfits">
-          <p className="concept-outfits-hint">입힐 옷을 고르세요</p>
+          <p className="concept-outfits-hint">의상을 선택하세요</p>
           <div className="concept-outfit-grid">
             {outfits.map((src, i) => (
               <button

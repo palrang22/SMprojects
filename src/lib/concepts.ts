@@ -66,12 +66,12 @@ Keep the face, hairstyle and body from <IMAGE_REF_0> consistent in every frame. 
 Audio: lively daytime theme-park chatter that shifts into a sparkling evening carousel melody at the time change, a soft whoosh as day turns to night. No dialogue or voiceover.
 No on-screen text, captions, subtitles or watermarks.`,
     refImages: [
-      `${dir}/amusement-park/castle-background.png`,
-      `${dir}/amusement-park/merry-go-round-background.png`,
+      `${dir}/amusement-park/castle-background.webp`,
+      `${dir}/amusement-park/merry-go-round-background.webp`,
     ],
     outfits: [
-      `${dir}/amusement-park/g-school-uniform.png`,
-      `${dir}/amusement-park/b-school-uniform.png`,
+      `${dir}/amusement-park/g-school-uniform.webp`,
+      `${dir}/amusement-park/b-school-uniform.webp`,
     ],
     aspectRatio: "9:16",
   },
@@ -88,7 +88,7 @@ In one continuous slow-motion shot, the person from <IMAGE_REF_0> stands center 
 Keep the face and hairstyle from <IMAGE_REF_0> identical in every frame. Photorealistic, saturated concert color, volumetric haze, shallow depth of field.
 Audio: a massive crowd cheering and chanting, a driving live band, applause swelling. No dialogue or voiceover.
 No on-screen text, captions, subtitles or watermarks.`,
-    refImages: [`${dir}/concert/concert-hall.png`],
+    refImages: [`${dir}/concert/concert-hall.webp`],
     outfits: [],
     aspectRatio: "9:16",
   },
@@ -106,11 +106,11 @@ No on-screen text, captions, subtitles or watermarks.`,
 Keep the face, hairstyle and build from <IMAGE_REF_0> identical throughout. Photorealistic, high-end cinematic color, shallow depth of field, subtle anamorphic flares.
 Audio: rapid camera-shutter clicks, a cheering crowd, muffled event music. No dialogue or voiceover.
 No on-screen text, captions, subtitles or watermarks.`,
-    refImages: [`${dir}/red-carpet/limousine.png`,
-                `${dir}/red-carpet/photowall.png`
+    refImages: [`${dir}/red-carpet/limousine.webp`,
+                `${dir}/red-carpet/photowall.webp`
               ],
-    outfits: [`${dir}/red-carpet/g-redcarpet-dress.png`,
-              `${dir}/red-carpet/m-redcarpet-suit.png`
+    outfits: [`${dir}/red-carpet/g-redcarpet-dress.webp`,
+              `${dir}/red-carpet/m-redcarpet-suit.webp`
             ],
     aspectRatio: "9:16",
   },

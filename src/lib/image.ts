@@ -14,9 +14,16 @@ const JPEG_QUALITY = 0.85;
 /** 이 크기 아래면 재인코딩하지 않는다 — PNG 투명도 등 원본 특성을 보존한다 */
 const SKIP_RESIZE_BYTES = 1024 * 1024;
 
+/**
+ * 재인코딩 없이 모델로 그대로 보내도 되는 포맷.
+ * 샘플 이미지는 `.webp` 지만 `virtual-try-on-001` 등 Vertex 이미지 API 는
+ * PNG/JPEG 만 문서상 보장한다. webp 는 크기와 무관하게 항상 JPEG 로 정규화한다.
+ */
+const SAFE_PASSTHROUGH = /^image\/(jpeg|png)$/;
+
 /** 긴 변이 MAX_EDGE 를 넘으면 canvas 로 줄여 JPEG data URL 로 만든다 */
 async function shrink(file: File): Promise<string | null> {
-  if (file.size <= SKIP_RESIZE_BYTES) return null;
+  if (file.size <= SKIP_RESIZE_BYTES && SAFE_PASSTHROUGH.test(file.type)) return null;
 
   let bitmap: ImageBitmap;
   try {
