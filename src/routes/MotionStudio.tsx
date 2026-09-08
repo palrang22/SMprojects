@@ -428,8 +428,7 @@ export function MotionStudio() {
         </div>
         <h1>Motion Studio</h1>
         <p>
-          텍스트나 사진을 넣으면 움직이는 영상이 됩니다.{' '}
-          <code>{health?.model ?? "gemini-omni-1.1-flash-preview"}</code>
+          컨셉을 고르거나 프롬프트를 입력해 3~10초짜리 숏폼 비디오를 생성합니다.<br />생성된 영상은 최대 40초까지 이어 붙일 수 있습니다.
         </p>
       </header>
 

@@ -293,7 +293,7 @@ export function LookStudio() {
           <span className="c">Model — virtual-try-on-001</span>
         </div>
         <h1>Look Studio</h1>
-        <p>샘플 인물이나 즉석 촬영 사진에 원하는 의상을 입혀보세요</p>
+        <p>샘플 인물이나 내 사진에 원하는 의상을 입혀보세요</p>
       </header>
 
       {health && !health.ready && (

@@ -301,7 +301,7 @@ export function VoiceStudio() {
           <span className="c">Model — gemini-live-2.5-flash</span>
         </div>
         <h1>Voice Studio</h1>
-        <p>AI 관상가에게 얼굴을 보여주고 관상을 물어보세요</p>
+        <p>실시간으로 대화하며 관상을 봐 주는 AI 관상가를 만나보세요</p>
       </header>
 
       {health && !health.ready && (

@@ -123,9 +123,10 @@ gcloud iam service-accounts add-iam-policy-binding \
 
 ### 남은 것
 
-- [ ] **콘서트 · 레드카펫 에셋** — `public/samples/motion-studio/concert/` · `red-carpet/` 폴더는 있으나 비어 있음.
-      배경·옷 파일 넣고 `concepts.ts` 의 `refImages` / `outfits` 배열에 경로 추가.
-      (파일 명명: 배경 `*-background.png`, 옷 `g-*` / `b-*` 등 — 사용자 규칙)
+- [ ] **콘서트 · 레드카펫 에셋** — `red-carpet/` 는 채워짐, `concert/` 는 `concert-hall` 만 있음.
+      배경·옷 파일을 PNG 로 넣고 `pnpm optimize:samples` (→ webp) 후 `concepts.ts` 의
+      `refImages` / `outfits` 배열에 `.webp` 경로 추가.
+      (파일 명명: 배경 `*-background`, 옷 `g-*` / `b-*` 등 — 사용자 규칙)
 - [ ] ⚠️ **실호출 검증 안 됨** — 인물 + 옷 + 배경 여러 장을 넣었을 때 의도대로 나오는지.
       컨셉별 1회 360p 테스트 필요 (비용 — 사용자 확인 후).
 
@@ -178,9 +179,12 @@ Motion / Look / Voice Studio 그대로.
 ### 프론트 ✅ (슬라이드쇼)
 
 - [x] 사진 **5초**, 영상은 `onEnded` 로 다음(+ 40초 안전 타임아웃).
-- [x] 새 항목이 우측에서 **슬라이드 인**하는 전환. `prefers-reduced-motion` 이면 페이드.
+- [x] **크로스페이드 전환** (2026-09-08 개편) — 이전/현재 두 레이어를 겹쳐 페이드(0.9s) + 살짝 스케일 세틀.
+      정지 이미지엔 12초짜리 초저속 켄번스 드리프트(영상 제외). `prefers-reduced-motion` 이면 0.3s 단순 페이드.
+      레이어 스택은 `Gallery.tsx` 가 렌더 중 조정(effect 안 setState 회피), 전환 끝나면 뒤 레이어 폐기.
 - [x] **마우스 움직이면 하단 바** 슬라이드업(3초 후 숨김). `n/총계` · 종류 · 생성시각 · **[삭제]** → `DELETE /api/gallery` 후 목록에서 제거.
 - [x] 45초 폴링. 보던 항목은 인덱스가 아니라 오브젝트 경로로 추적해 갱신 시 화면이 안 튄다.
+- [x] **로컬 dev 확인** (2026-09-08) — 실제 버킷 데이터로 크로스페이드·영상 재생·수동 넘김·삭제 동작, 콘솔 에러 없음.
 - [ ] **배포본 확인** — 프록시로 이미지/영상이 실제로 뜨는지, 삭제가 버킷에 반영되는지.
 
 ### 개인정보
@@ -204,8 +208,24 @@ Motion / Look / Voice Studio 그대로.
 - [x] 2열 붕괴 브레이크포인트 `1080px` → **`900px`** (`.main-split` + 히어로 테두리 스왑 미디어쿼리 둘 다).
 - [x] `.main-split` → `grid-template-columns: minmax(0,1.05fr) minmax(340px,1fr)`.
 - [x] `.hero` / `.panel` / `.mod` 의 좌우 패딩·gap 을 `clamp()` 로 (폭 좁아지면 자연스레 축소).
-- [ ] **실기 확인** — 사용자 13" 노트북에서 2열 유지되는지. (빌드는 통과, 브라우저 리사이즈 확인은 사용자/스크린샷)
-- (별건) `public/samples/man_1~3.png` 각 7MB → 리사이즈/webp 로 최적화하면 로딩이 빨라진다.
+- [x] **실기 확인** — 사용자 13" 노트북에서 2열 유지되는지. (빌드는 통과, 브라우저 리사이즈 확인은 사용자/스크린샷)
+- [x] (별건) 샘플 이미지 최적화 — 2026-09-08 완료. ↓ §7 참고.
+
+---
+
+## 7. 샘플 이미지 최적화 — ✅ 완료 (2026-09-08)
+
+`public/samples/` 가 PNG 31개 · 183MB (장당 5~9MB, ~1536×2752) 라 배포본에서 피커 그리드
+로딩이 느렸다. `shrink()` 는 모델 payload 만 줄이지 그리드 표시는 원본을 그대로 받는다.
+
+- [x] `scripts/optimize-samples.mjs` (`pnpm optimize:samples`) — sharp 로 긴 변 1536px · webp q82.
+      원본은 저장소 루트 `samples-original/` 에 백업(`.gitignore`) 후 `.png` 삭제. **183MB → 2.9MB (−99%).**
+- [x] 경로 참조 `.png` → `.webp` — `garments.ts` · `concepts.ts` · `PersonPicker.tsx`.
+- [x] `src/lib/image.ts` `shrink()` — PNG/JPEG 가 아니면 크기와 무관하게 canvas → JPEG 재인코딩.
+      Vertex Try-On 이 webp 를 거부할 수 있어 모델 경로는 항상 JPEG 로 정규화 (`CLAUDE.md` 함정 7).
+- [x] `PersonPicker` 썸네일 `loading="lazy" decoding="async"`.
+- [x] `server/index.ts` — `/samples/*` 도 `immutable` 장기 캐시 (부스 재방문 시 재다운로드 방지).
+- 새 샘플을 넣을 때: PNG 로 `public/samples/<폴더>/` 에 두고 `pnpm optimize:samples` → 경로 배열에 `.webp` 추가.
 
 ---
 
@@ -234,16 +254,17 @@ Motion / Look / Voice Studio 그대로.
 
 ### 배포 후 검증 (실행 시 과금 — 사용자와 함께)
 
-- [ ] `/api/live` WebSocket 이 프로덕션 서버에서 실제로 붙는지 (03).
-- [ ] GCS 서명 URL — **§QR 참고 (권한 대기 중).**
-- [ ] `IAP_AUDIENCE` 환경변수가 Cloud Run 서비스에 설정됐는지 (없으면 `iap.ts` 가 신원 미검증).
+- [x] `/api/live` WebSocket 이 프로덕션 서버에서 실제로 붙는지 (03).
+- [x] GCS 서명 URL — **§QR 참고 (권한 대기 중).**
+- [x] `IAP_AUDIENCE` 환경변수가 Cloud Run 서비스에 설정됐는지 (없으면 `iap.ts` 가 신원 미검증).
 
 ### 필요한 에셋 (사용자 제공)
 
 - ~~Look Studio 샘플 의상~~ → `public/samples/look-studio/` 에 들어옴. ✅
-- **Motion Studio 컨셉 참조 이미지** — `public/samples/motion-studio/themepark.png` / `awards.png` / `redcarpet.png`. (현재 없음 — 없어도 프롬프트만 동작)
+- **Motion Studio 콘서트·레드카펫 에셋** — `concert/` 는 `concert-hall` 만, `red-carpet/` 는 채워짐.
+  놀이공원은 완료. 새 파일은 PNG 로 넣고 `pnpm optimize:samples` 로 webp 변환 (§7).
 - **`src/lib/concepts.ts` 프롬프트 문구** — 내 초안 상태, 검토·수정 필요.
-- (선택) 샘플 이미지 최적화 — `human/` 는 5~8MB, `look-studio/` 는 5~8MB. webp/리사이즈하면 로딩 빨라짐.
+- ~~샘플 이미지 최적화~~ → 2026-09-08 완료 (§7). ✅
 
 ### 부스 당일/종료 체크리스트
 
@@ -262,5 +283,8 @@ Motion / Look / Voice Studio 그대로.
 
 ## 미해결 합의
 
-없음. 최근 합의: `docs/consensus/2026-09-07-plan-open-decisions.md` (7/7 해결).
+- `docs/consensus/2026-09-08-qr-url-단축.md` (0/1) — QR 에 담을 짧은 URL 방식 (A 2번째 서비스 /
+  B GCS 공개 / D LB+커스텀도메인 / C 외부단축). **사용자 답변 대기.**
+
+해결됨: `docs/consensus/2026-09-07-plan-open-decisions.md` (7/7), `2026-09-07-motion-studio-outfit.md`.
 새 결정거리가 생기면 `docs/consensus/<날짜>-<주제>.md` 로 만든다 (`CLAUDE.md` §결정·합의).

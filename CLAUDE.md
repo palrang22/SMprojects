@@ -46,6 +46,7 @@ pnpm build         # tsc -b && vite build && pnpm build:server
 pnpm build:server  # tsconfig.server.json — server/ 를 dist-server/ 로 emit
 pnpm start         # node dist-server/index.js — 배포와 동일한 프로덕션 서버
 pnpm lint          # eslint
+pnpm optimize:samples  # public/samples/**/*.png → webp (긴 변 1536px). 원본은 samples-original/ 에 백업 후 삭제
 ```
 
 변경 후에는 `pnpm build`와 `pnpm lint`를 돌려서 통과하는지 확인할 것.
@@ -133,7 +134,7 @@ src/components/PersonPicker.tsx  인물 입력 (샘플/촬영/업로드) — 01�
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
 src/lib/admin.ts       관리자 비번(aprk12!)·세션 판정 — §접근 제어 참고 (클라이언트 전용 덮개)
 src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
-src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸
+src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸. image.ts `shrink()` 는 모델로 보내기 전 긴 변 1920px 로 줄이고, PNG/JPEG 가 아니면(=샘플 webp) 크기와 무관하게 JPEG 로 재인코딩 (함정 7)
 src/lib/errorReport.ts  원본 에러를 새 탭에 띄우는 유틸 (ErrorBanner·DownloadQr 공유)
 src/lib/concepts.ts    01 컨셉 (버튼 → prompt 자동 채움 + 배경 refImages + 옷 outfits). 시나리오는 시안, 프롬프트 문구는 Omni 1.1 prompt guide 에 맞춰 작성 (규칙은 파일 상단 주석 — 영어·<IMAGE_REF_N> 태그·타임코드)
 src/lib/garments.ts    02 샘플 의상 (폴더별 섹션). public/samples/look-studio/
@@ -147,8 +148,9 @@ src/routes/ComingSoon.tsx    미사용. 컷라인 대비로 남겨둠
 src/styles/hub.css      시안 CSS. 디자인 토큰(:root)이 여기 있다
 src/styles/studio.css   스튜디오 UI. 위 토큰으로 재매핑해서 톤을 맞춘다
 
+scripts/optimize-samples.mjs  public/samples/**/*.png → webp (긴 변 1536px, sharp). 원본은 samples-original/ 로 백업 후 삭제. `pnpm optimize:samples`
 Dockerfile              멀티스테이지 (deps → builder → runner). CMD node dist-server/index.js
-public/                 로고 SVG (SM CI, Google Cloud). 절대경로로 참조
+public/                 로고 SVG (SM CI, Google Cloud) + samples/ (webp, 절대경로로 참조). 원본 PNG 백업은 samples-original/ (.gitignore)
 docs/design/            원본 HTML 시안 (빌드 미포함)
 docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
 ```
@@ -220,6 +222,10 @@ docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
    무시해서, 앞 영상과 무관한 새 영상이 나오는데도 정상처럼 보인다 (문서의 멀티턴 확장
    예시는 Gemini API 키 기준이다). 앞 영상의 `gs://` 를 `document` 입력으로 직접 넣어야
    한다. 확인은 응답 `usage.input_tokens_by_modality` 에 `video` 가 잡히는지로 한다.
+7. **`virtual-try-on-001` 등 Vertex 이미지 API 는 PNG/JPEG 만 문서상 보장한다.** 샘플 이미지는
+   `.webp` 로 최적화돼 있으므로(로딩 속도), `src/lib/image.ts` `shrink()` 가 모델로 보내기 전
+   webp 를 항상 canvas → JPEG 로 재인코딩한다. webp 를 그대로 payload 에 실으면 Try-On 이
+   거부할 수 있다. Omni(Gemini 계열)는 webp 를 받지만 일관성을 위해 같은 경로를 쓴다.
 
 ## 비용 — 중요
 
