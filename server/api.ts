@@ -338,7 +338,8 @@ function parseTryOnOptions(raw: unknown): TryOnOptions {
   const products = parseImages(Array.isArray(body.products) ? body.products : [])
   if (!products.length) throw new Error('의상 사진을 넣어주세요')
 
-  return { person, products: products.slice(0, 2) }
+  // virtual-try-on-001 은 productImage 를 하나만 받는다 — 한 벌만 넘긴다
+  return { person, products: products.slice(0, 1) }
 }
 
 /**

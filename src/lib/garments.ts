@@ -8,7 +8,7 @@
  * 새 옷을 PNG 로 넣었으면 `pnpm optimize:samples` 로 변환한다.
  *
  * `virtual-try-on-001` 은 상의/하의/원피스만 지원한다 (가방·모자·소품 불가).
- * 최대 2벌까지 조합 가능 (예: 상의 + 하의). — server/api.ts `parseTryOnOptions`
+ * 한 번에 한 벌만 입힌다 (모델이 productImage 를 하나만 받음). — server/api.ts `parseTryOnOptions`
  */
 
 export type Garment = {
@@ -69,5 +69,5 @@ export const GARMENT_SECTIONS: GarmentSection[] = [
   },
 ];
 
-/** 최대 선택 벌 수 — server 의 products.slice(0, 2) 와 맞춘다 */
-export const MAX_GARMENTS = 2;
+/** 최대 선택 벌 수 — server 의 products.slice(0, N) 와 맞춘다 */
+export const MAX_GARMENTS = 1;

@@ -50,7 +50,7 @@ function ChosenGarments({
         <p className="garment-empty">
           아래에서 의상을 고르세요
           <br />
-          <span>상·하의를 함께 고르려면 2벌</span>
+          <span>상의·하의·원피스 중 한 벌</span>
         </p>
       ) : (
         <div className="garment-chosen-grid" data-count={picked.length}>
@@ -116,7 +116,7 @@ function GarmentPicker({
         />
       </div>
 
-      {full && <p className="garment-note">최대 {MAX_GARMENTS}벌까지 선택할 수 있어요</p>}
+      {full && <p className="garment-note">한 벌만 선택할 수 있어요. 바꾸려면 선택을 해제하세요</p>}
 
       <div className="garment-scroll">
         {GARMENT_SECTIONS.map((sec) => (
