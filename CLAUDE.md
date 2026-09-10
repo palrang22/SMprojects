@@ -54,27 +54,34 @@ pnpm optimize:samples  # public/samples/**/*.png → webp (긴 변 1536px). 원�
 ## GCP 설정 (이미 되어 있음 — 다시 만들지 말 것)
 
 ```
-프로젝트  kktae-demo                   (2026-08-27 프로젝트 변경 — 이전 gcp-a-presales-ge-20260521 아님)
-계정      kseungh@mz.co.kr             (회사 계정. 개인 Gmail 아님)
+프로젝트  minling-ai-day-project       (2026-09-10 프로젝트 이전 — 이전 kktae-demo 아님. 프로젝트 번호 926665583116)
+계정      kseungh@mz.co.kr             (회사 계정. 이 프로젝트에선 Owner)
 인증      Vertex AI + ADC              (API 키 아님)
 리전      global                       (Vertex 호출 리전. Cloud Run 배포 리전(asia-northeast3)과 다름)
-버킷      gs://smproject-sh/output
+버킷      gs://smproject-sh2/output    (asia-northeast3. 이름이 smproject-sh 가 아닌 이유: 버킷명은
+                                        전역 유일 + 구 프로젝트가 30일 삭제 대기라 smproject-sh 재사용 불가)
 ```
 
-- 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project kktae-demo` 로 이미 잡혀 있다.
+- 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project minling-ai-day-project` 로 이미 잡혀 있다.
 - 버킷은 이 프로젝트 안에 새로 만든 것. **자동 삭제 규칙은 두지 않는다** (합의 D6). 부스 결과물은
   행사 종료 후 스태프가 수동으로 비운다 — 동의 팝업이 약속한 내용이므로 체크리스트에 있다 (`PLAN.md`).
-- **런타임 서비스 계정** `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` —
-  `Editor`(Vertex·GCS 다 포함) + `serviceAccountTokenCreator`(self-bind, 서명 URL용) 보유.
-  **더 요청할 IAM 없음** (2026-09-07 정리 — `PLAN.md` §배포 IAM).
-  로컬 `pnpm dev` 는 개인 ADC(Editor)라 Vertex·스토리지는 되고, 서명만 `GCS_SIGNER_SA`
+- **런타임 서비스 계정** `smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com`
+  (이름 **단수** `smproject-` 주의 — kktae-demo 때는 `smprojects-` 였다). 보유 역할:
+  - Vertex 호출용 역할 (콘솔 표기 "Agent Platform User" — `roles/aiplatform.user` 계열)
+  - `roles/storage.objectAdmin` — **버킷 `smproject-sh2` 한정** 바인딩 (프로젝트 레벨 아님)
+  - `roles/iam.serviceAccountTokenCreator` — self-bind, 서명 URL(signBlob)용
+  - 프로젝트 레벨 `Editor` 는 **안 줬다** (공용 프로젝트 — 최소권한). kktae-demo 때와 다른 점.
+  로컬 `pnpm dev` 는 개인 ADC 라 Vertex·스토리지는 되고, 서명만 `GCS_SIGNER_SA`
   (`.env.local`) impersonate 로 — 내 계정이 SA 에 token creator 를 가져야 동작 (아직 없음, 배포본에선 불필요).
-- ⚠️ **`kktae-demo`는 전용 프로젝트가 아니라 선배의 기존 프로젝트다.** 이전 프로젝트
-  (`gcp-a-presales-ge-20260521`) 때와 같은 원칙 적용: **우리가 만든 리소스(서비스 계정
-  `smprojects-*`, 버킷 `smproject-sh`)만 건드리고, 이미 있던 다른 리소스는 절대 만지지 말 것.**
-  IAM 정책 조회(`add-iam-policy-binding` 실행 시 뜬 기존 조건부 바인딩 등)로 다른 용도
-  (`cloudbuild-connection-setup`, `Create Studio Asset Metadata DB` 등)가 이미 돌고 있는 게
-  확인됨. 예산·쿼터도 선배 프로젝트 계정으로 잡히니 비용 지출 전 확인 원칙은 그대로 유지.
+- **소스 배포용** 기본 compute SA `926665583116-compute@developer.gserviceaccount.com` 에
+  `roles/cloudbuild.builds.builder` 를 수동 부여했다 — `gcloud run deploy --source` 가 이 SA 로
+  Cloud Build 를 돌리는데, 조직 정책상 기본 SA 자동 역할 부여가 꺼져 있어서 직접 준 것.
+- ⚠️ **`minling-ai-day-project` 도 이 앱 전용이 아니라 공용 프로젝트다.** kktae-demo 때와 같은
+  원칙: **우리가 만든 리소스(SA `smproject-ai-runner`, 버킷 `smproject-sh2`, Cloud Run
+  `smprojects-sh`, Artifact Registry `cloud-run-source-deploy`)만 건드리고, 이미 있던 다른
+  리소스는 절대 만지지 말 것.** 예산·쿼터도 공용 계정으로 잡히니 비용 지출 전 확인 원칙 유지.
+- 구 배포(`kktae-demo` 의 `smprojects-sh` / `smproject-sh` 버킷 / `smprojects-ai-runner` SA)는
+  사용자가 직접 정리한다. 이전 프로젝트: `kktae-demo` ← `gcp-a-presales-ge-20260521` (둘 다 폐기).
 
 ## 접근 제어 — IAP
 
@@ -84,6 +91,12 @@ pnpm optimize:samples  # public/samples/**/*.png → webp (긴 변 1536px). 원�
 - **Cloud Run 에 IAP 를 직접** 건다 (2026 GA. 로드밸런서 불필요)
 - 허용 대상: 주 구성원 `domain:mz.co.kr` + 역할 `roles/iap.httpsResourceAccessor`
 - 앱 안에서 로그인 기능을 따로 만들지 말 것. IAP 가 이미 인증을 끝낸다.
+- **OAuth 클라이언트는 커스텀(직접 만든 것)이다.** `minling-ai-day-project` 의 조직 도메인이
+  `mz.co.kr` 이 아니라서 동의 화면을 **External** 로 두고 OAuth 2.0 클라이언트 ID 를 직접 만들어
+  IAP 에 연결했다 (Google-managed 클라이언트는 Internal 동의 화면에서만 됨). 리디렉션 URI 는
+  `https://iap.googleapis.com/v1/oauth/clientIds/<CLIENT_ID>:handleRedirect`.
+- `server/iap.ts` 검증용 `IAP_AUDIENCE` (Cloud Run env):
+  `/projects/926665583116/locations/asia-northeast3/services/smprojects-sh`
 
 IAP 통과 후 요청에 붙는 헤더:
 
@@ -186,17 +199,29 @@ docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
 ### 배포
 
 정적 파일 + API + Live WS 를 한 프로세스에서 서빙하는 실제 서버(`server/index.ts`)와
-`Dockerfile` 이 있고, **Docker 로 Cloud Run 에 배포 완료 + IAP 도 콘솔에서 설정 완료** (사용자 확인).
+`Dockerfile` 이 있고, **Cloud Run 에 배포 완료 + IAP 설정 + 스튜디오 3종·갤러리 실호출 검증까지 완료**
+(2026-09-10, `minling-ai-day-project` 로 이전하며 재검증).
 
 - `pnpm build` 가 `dist/`(프론트) + `dist-server/`(서버)를 만든다. `pnpm start` 로 로컬에서
   배포와 동일하게 띄울 수 있다.
-- **배포 후에도 남은 검증** (실행하면 과금되므로 사용자와 함께):
-  `/api/live` WS 가 프로덕션 서버에서 실제로 붙는지, GCS 서명 URL 이 서비스 계정으로 동작하는지.
-- IAP 는 배포된 서비스에 직접 걸려 있다. `server/iap.ts` 가 JWT 를 검증하려면
-  `IAP_AUDIENCE` 환경변수가
-  `/projects/<PROJECT_NUMBER>/locations/<REGION>/services/<SERVICE_NAME>` 형태로 있어야 한다
-  (없으면 no-op). 지금 코드는 라우트 차단 없이 로깅만 — 실제 인가 판단(킬 스위치·레이트리밋)은
-  이 신원으로 나중에 붙인다.
+- **배포 방식**: Cloud Build. 프로젝트 루트에서
+  ```
+  gcloud run deploy smprojects-sh --source . \
+    --project minling-ai-day-project --region asia-northeast3 \
+    --service-account smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com \
+    --no-allow-unauthenticated \
+    --min-instances 1 --max-instances 1 \
+    --concurrency 80 --cpu 1 --memory 512Mi --timeout 300 --cpu-boost \
+    --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=minling-ai-day-project,GOOGLE_CLOUD_LOCATION=global,GOOGLE_CLOUD_OUTPUT_GCS_URI=gs://smproject-sh2/output
+  ```
+  `--source .` 가 `Dockerfile` 로 빌드(buildpacks 아님) → Artifact Registry `cloud-run-source-deploy`
+  (자동 생성) → 배포. `IAP_AUDIENCE` 는 배포 후 `gcloud run services update ... --update-env-vars` 로 추가.
+- **인스턴스 1개 고정**(`--min/max-instances 1`)은 의도된 것 — `server/api.ts` 의 인메모리 잡
+  스토어(01 폴링)가 인스턴스 간 공유가 안 된다. 트래픽 없어도 1개가 상시 과금됨.
+- 남은 검증: **GCS 서명 URL(QR 다운로드)** 이 런타임 SA self-bind 로 실제 동작하는지 (Look Studio 1회).
+- IAP 는 배포된 서비스에 직접 걸려 있다. `server/iap.ts` 가 JWT 를 검증하려면 `IAP_AUDIENCE`
+  (위 §접근 제어에 실제 값) 가 있어야 한다 (없으면 no-op). 지금 코드는 라우트 차단 없이 로깅만 —
+  실제 인가 판단(킬 스위치·레이트리밋)은 이 신원으로 나중에 붙인다.
 
 ### 인증 모드 전환
 

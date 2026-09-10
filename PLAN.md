@@ -1,13 +1,15 @@
 # PLAN.md — SM AI Day 부스 · 앞으로 할 일
 
-> 최종 갱신: **2026-09-07** — 배포 완료 후 전면 재작성. 이전 계획(2026-08-27, 배포 전)은 폐기.
+> 최종 갱신: **2026-09-10** — `minling-ai-day-project` 로 프로젝트 이전하며 갱신.
 > 배경·GCP 설정·디자인 토큰·비용·함정은 `CLAUDE.md`. 이 문서는 **부스(2026-09-14) 전까지 할 일**만 담는다.
 
 ## 현재 상태
 
 - 스튜디오 3종: UI·실호출 검증 완료 (2026-08-26).
-- `server/index.ts` + `Dockerfile` 로 **Cloud Run 배포 완료**, IAP 콘솔 설정 완료.
-- 남은 작업: 아래 §QR(최우선, 권한 대기) → §1·2 → §4 → §5·6 → §공통.
+- **2026-09-10 프로젝트 이전** `kktae-demo` → `minling-ai-day-project` (둘 다 공용 프로젝트).
+  Cloud Build 재배포 + 새 SA(`smproject-ai-runner`, 단수) + 새 버킷(`smproject-sh2`) +
+  IAP 커스텀 OAuth 재구성 + 스튜디오 3종·갤러리 실호출 재검증까지 완료. 상세는 `CLAUDE.md` §GCP 설정.
+- 남은 작업: §QR 서명 URL 배포본 확인 → §1(콘서트·레드카펫 에셋) → §공통(호출 상한·킬 스위치) → 구 프로젝트 정리.
 
 ---
 
@@ -25,9 +27,9 @@
 
 ### 권한
 
-- 배포 런타임 SA `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` 에
-  `roles/iam.serviceAccountTokenCreator` (self-bind) — **이거 하나.** → ✅ 완료 (2026-09-07)
-- `iamcredentials.googleapis.com` API 가 켜져 있어야 `signBlob` 이 먹는다 (보통 켜져 있음 — 확인만).
+- 배포 런타임 SA `smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com` 에
+  `roles/iam.serviceAccountTokenCreator` (self-bind) — **이거 하나.** → ✅ 완료 (2026-09-10, 이전하며 재설정)
+- `iamcredentials.googleapis.com` API 가 켜져 있어야 `signBlob` 이 먹는다 → ✅ 이전 시 enable 함.
 
 ### 코드 (2026-09-07) ✅
 
@@ -41,58 +43,42 @@
 
 ### 남은 것
 
-- 지금은 로컬에서 QR 자리에 **[🔎 오류 보기]** 가 뜨고, 누르면
-  `SigningError: Permission 'iam.serviceAccounts.signBlob' denied` 가 새 탭에 보인다 (정상 — 아래 권한 대기).
-- [ ] **로컬** — 2026-09-07 테스트: impersonation 코드는 실행되지만
-      `Permission 'iam.serviceAccounts.signBlob' denied` → `kseungh@mz.co.kr` 계정이 SA 에
-      `roles/iam.serviceAccountTokenCreator` 가 **없다.** 관리자(선배)가 부여해야 함 (우리는 Editor):
-      ```bash
-      gcloud iam service-accounts add-iam-policy-binding \
-        smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com \
-        --member="user:kseungh@mz.co.kr" \
-        --role="roles/iam.serviceAccountTokenCreator" --project=kktae-demo --condition=None
-      ```
-      부여되면 `pnpm dev` 재시작 → Look Studio 1회 → 로그 `impersonate 합니다` + QR 버튼 확인.
-- [ ] **배포본** — self-bind(SA→SA)가 실제로 붙었으면 `GCS_SIGNER_SA` 없이 이미 동작할 것.
-      배포 후 Look Studio 1회 → QR 버튼 / 로그 `서명 URL 생성 실패` 없는지.
-  - `PERMISSION_DENIED ... signBlob` → self-bind 도 실제로 안 붙음.
-  - `Cannot sign data without 'client_email'` → Cloud Run SA attach 안 됨.
+- [ ] **배포본 QR 확인** — `minling-ai-day-project` 배포에서 Look Studio 1회 →
+      QR 버튼이 뜨는지 / Cloud Run 로그에 `서명 URL 생성 실패` 없는지.
+      런타임 SA self-bind(`serviceAccountTokenCreator`)로 `GCS_SIGNER_SA` 없이 동작해야 함.
+  - `PERMISSION_DENIED ... signBlob` → self-bind 재확인.
+  - `Cannot sign data without 'client_email'` → Cloud Run 에 SA attach 안 됨(`--service-account` 확인).
+- [ ] **로컬 QR**(선택) — `kseungh@mz.co.kr` 이 `smproject-ai-runner` SA 에
+      `roles/iam.serviceAccountTokenCreator` 를 가지면 `pnpm dev` + `GCS_SIGNER_SA` impersonate 로도 확인 가능.
+      Owner 권한이 있으니 직접 부여 가능하지만, 배포본에서 확인되면 급하지 않음.
 
 ---
 
-## 배포 IAM — 정리 (2026-09-07)
+## 배포 IAM — 정리 (2026-09-10, `minling-ai-day-project` 기준)
 
 앱이 쓰는 GCP: **Vertex(`@google/genai`) + GCS(`@google-cloud/storage`) 둘뿐.**
 
-런타임 SA `smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com` 현재 보유:
-`Editor` + `Cloud Run Admin` + `IAP Policy Admin` + `iam.serviceAccountTokenCreator`(self-bind).
+런타임 SA `smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com` 보유
+(공용 프로젝트라 프로젝트 레벨 `Editor` 안 주고 최소권한으로):
 
-| 필요 | 커버 | 상태 |
+| 필요 | 부여한 역할 | 상태 |
 |---|---|---|
-| Vertex 3종 호출 | `Editor` 에 `aiplatform.*` 포함 | ✅ 동작 확인 |
-| 버킷 업로드/다운로드/목록/삭제 | `Editor` 에 `storage.objects.*` 포함 | ✅ 동작 확인 |
-| 서명 URL (`signBlob`) — QR·갤러리 | `serviceAccountTokenCreator` (Editor 엔 없음) | ✅ self-bind 완료 |
+| Vertex 3종 호출 | 콘솔 표기 "Agent Platform User" (`aiplatform.user` 계열) | ✅ 실호출 확인 (2026-09-10) |
+| 버킷 업로드/다운로드/목록/삭제 | `roles/storage.objectAdmin` — **버킷 `smproject-sh2` 한정** | ✅ 실호출 확인 |
+| 서명 URL (`signBlob`) — QR·갤러리 | `roles/iam.serviceAccountTokenCreator` (self-bind) | ✅ 바인딩 완료 (배포본 QR 확인은 §QR) |
 
-→ **런타임 SA 는 더 요청할 것 없음.** `aiplatform.user`·`storage.objectUser` 는 Editor 가 이미 포함하므로 불필요.
+배포용(런타임 아님): 기본 compute SA `926665583116-compute@developer.gserviceaccount.com` 에
+`roles/cloudbuild.builds.builder` — `gcloud run deploy --source` 빌드용. 조직 정책상 자동 부여가
+꺼져 있어 수동으로 줬다.
 
-### 남은 것 하나 — 로컬 QR 테스트 (선택)
+### 이전 시 확인 완료
 
-`kseungh@mz.co.kr` 계정이 SA 에 `roles/iam.serviceAccountTokenCreator` 가 없어서
-로컬 `pnpm dev` + `GCS_SIGNER_SA` impersonate 가 `signBlob denied` (2026-09-07 확인).
-→ 급하지 않으면 **배포본에서 QR 확인**하면 된다 (self-bind 로 이미 될 것). 로컬도 되게 하려면:
-
-```bash
-gcloud iam service-accounts add-iam-policy-binding \
-  smprojects-ai-runner@kktae-demo.iam.gserviceaccount.com \
-  --member="user:kseungh@mz.co.kr" \
-  --role="roles/iam.serviceAccountTokenCreator" --project=kktae-demo --condition=None
-```
-
-### 역할 아닌 것 — 확인만
-
-- [ ] `iamcredentials.googleapis.com` API 켜짐 (signBlob) — `gcloud services list --enabled --filter=iamcredentials --project=kktae-demo`
-- [ ] Cloud Run 이 이 SA 로 도는지 — `gcloud run services describe smprojects-sh --region=asia-northeast3 --format="value(spec.template.spec.serviceAccountName)"`
-- [ ] `IAP_AUDIENCE` 환경변수가 Cloud Run 에 세팅됐는지 (`server/iap.ts`).
+- [x] `aiplatform.googleapis.com` / `run` / `storage` / `artifactregistry` / `cloudbuild` /
+      `iap` / `iamcredentials` API enable
+- [x] Cloud Run 이 `smproject-ai-runner` SA 로 돎 (`--service-account` 지정)
+- [x] `IAP_AUDIENCE` = `/projects/926665583116/locations/asia-northeast3/services/smprojects-sh`
+- [x] IAP 커스텀 OAuth(External 동의 화면) + `domain:mz.co.kr` → `roles/iap.httpsResourceAccessor`
+- [x] 비로그인 → 구글 로그인 벽 / `@mz.co.kr` 통과 확인
 
 ---
 
@@ -167,7 +153,7 @@ Motion / Look / Voice Studio 그대로.
 
 ### 서버 ✅ (GCS 버킷 목록 조회 — 재시작·재배포와 무관하게 부스 하루 종일 누적)
 
-- [x] `GET /api/gallery` — `gs://smproject-sh/output` 나열. `contentType` → 경로(`/looks/` = 이미지) 순으로 타입 분류.
+- [x] `GET /api/gallery` — `gs://smproject-sh2/output` 나열. `contentType` → 경로(`/looks/` = 이미지) 순으로 타입 분류.
       각 항목 `url` 은 **서버 프록시 경로** `/api/gallery/media?object=…` + 생성시각, 최신순, 최대 80개.
 - [x] `GET /api/gallery/media?object=<경로>` — GCS 에서 바로 스트리밍(Range 지원). **서명 URL 안 씀.**
       갤러리는 관리자가 IAP + AdminGate 뒤에서만 보므로 IAP 우회 서명 URL 이 불필요 → `signBlob` 권한과
@@ -268,8 +254,10 @@ Motion / Look / Voice Studio 그대로.
 
 ### 부스 당일/종료 체크리스트
 
-- [ ] 행사 종료 후 `gs://smproject-sh` 의 체험 결과물 **수동 삭제** (동의 문구가 약속한 내용 — D6).
+- [ ] 행사 종료 후 `gs://smproject-sh2` 의 체험 결과물 **수동 삭제** (동의 문구가 약속한 내용 — D6).
 - [ ] 킬 스위치 동작 확인, 호출 상한 리셋.
+- [ ] 구 프로젝트(`kktae-demo`) 정리 — Cloud Run `smprojects-sh`, 버킷 `smproject-sh`,
+      SA `smprojects-ai-runner`, Artifact Registry 이미지. **우리가 만든 것만.**
 
 ### CLAUDE.md 갱신
 
@@ -277,7 +265,8 @@ Motion / Look / Voice Studio 그대로.
 - [x] "버킷 30일 자동 삭제 정책" → "수동 삭제" 로 정정.
 - [x] 동의 게이트(`ConsentGate`) — 아키텍처 섹션에 추가.
 - [x] `/gallery` 라우트 · `AdminGate` — 아키텍처 섹션에 추가.
-- [ ] §QR 권한 부여되면 "GCP 설정" 섹션의 대기 항목 갱신.
+- [x] §QR 권한 부여되면 "GCP 설정" 섹션의 대기 항목 갱신.
+- [x] 프로젝트 이전(`minling-ai-day-project`) — GCP 설정·접근 제어·배포 섹션 갱신 (2026-09-10).
 
 ---
 
