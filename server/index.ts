@@ -74,8 +74,11 @@ async function serveStatic(res: ServerResponse, pathname: string): Promise<void>
   const target = resolveStatic(pathname)
 
   if (target) {
-    // /assets/index-abc123.js 처럼 해시가 붙은 파일은 불변으로 취급한다
-    const immutable = pathname.startsWith('/assets/')
+    // /assets/index-abc123.js 처럼 해시가 붙은 파일은 불변으로 취급한다.
+    // /samples/* 도 파일명이 고정이고 배포 때만 바뀌므로 장기 캐시한다
+    // (부스에서 방문자가 반복 접속 — 매번 재다운로드 방지).
+    const immutable =
+      pathname.startsWith('/assets/') || pathname.startsWith('/samples/')
     if (await sendFile(res, target, immutable)) return
   }
 

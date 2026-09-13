@@ -79,6 +79,18 @@ export function LockIcon({ className }: Props) {
   );
 }
 
+/** 갤러리 — 겹쳐진 사진 더미 (관리자 슬라이드쇼 진입) */
+export function GalleryIcon({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="7" y="3" width="14" height="14" rx="2" />
+      <circle cx="12" cy="8" r="1.6" />
+      <path d="M7 13l4-3 5 4" />
+      <path d="M17 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2" />
+    </svg>
+  );
+}
+
 export function ArrowIcon({ className }: Props) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">

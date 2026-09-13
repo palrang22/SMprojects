@@ -7,6 +7,14 @@ import { generateVideo, omniModelFor, type GenerateOptions } from './omni.ts'
 import { generateTryOn, TRYON_MODEL_ID, type TryOnImage, type TryOnOptions } from './tryon.ts'
 import { describeConfig, type OmniConfig } from './config.ts'
 import { errorDetail } from './errors.ts'
+import {
+  deleteObject,
+  listObjects,
+  objectReadStream,
+  parseGsUri,
+  statObject,
+  type GcsObject,
+} from './gcs.ts'
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'error'
 
@@ -19,6 +27,8 @@ export type Job = {
   videoUrl?: string
   /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패/미배포 환경이면 없음. */
   downloadUrl?: string
+  /** 서명 실패 시 원인 전문 — 클라이언트 "오류 보기" 용 */
+  downloadError?: string
   interactionId?: string
   /** 장면 확장 체인 전체 길이(초). 40초 상한 표시에 쓴다 */
   totalSeconds?: number
@@ -58,6 +68,162 @@ const chainSeconds = new Map<string, number>()
  * chainSeconds 와 같은 인메모리라 재시작하면 사라진다.
  */
 const chainVideoUri = new Map<string, string>()
+
+/**
+ * Media Gallery (§4) — 배포 버킷(gs://.../output)에 누적된 01·02 결과물을
+ * 슬라이드쇼로 보여주는 화면이 쓴다. 서버 재시작·재배포와 무관하게 부스 하루
+ * 종일 쌓인 것을 그대로 나열한다 (잡 스토어와 달리 소스가 버킷이다).
+ */
+const GALLERY_MAX = 80
+
+export type GalleryItem = {
+  /** 버킷 기준 오브젝트 경로 — 삭제 요청에 그대로 넘긴다 */
+  object: string
+  type: 'image' | 'video'
+  /** IAP 를 거치지 않는 서명 URL */
+  url: string
+  /** 생성 시각(epoch ms). 최신순 정렬용 */
+  createdAt: number
+}
+
+/** 오브젝트를 01(영상)/02(이미지)로 분류. 해당 없으면 제외 */
+function classifyObject(o: GcsObject): 'image' | 'video' | null {
+  if (o.contentType?.startsWith('image/')) return 'image'
+  if (o.contentType?.startsWith('video/')) return 'video'
+  if (/\/looks\//.test(o.name)) return 'image' // tryon.ts 가 output/looks/ 에 올린다
+  if (/\.(mp4|webm|mov|m4v)$/i.test(o.name)) return 'video'
+  return null
+}
+
+type GalleryResponse = {
+  items: GalleryItem[]
+  /** 비어 있을 때 이유를 사람이 읽는 설명 */
+  note?: string
+  /** 원본 에러 전문 — 클라이언트 "오류 보기" 새 탭용 */
+  detail?: string
+}
+
+async function listGallery(config: OmniConfig): Promise<GalleryResponse> {
+  if (config.mode !== 'vertex' || !config.outputGcsUri) {
+    return {
+      items: [],
+      note: '갤러리는 Vertex + 출력 버킷이 설정된 환경(배포본)에서만 채워집니다.',
+    }
+  }
+
+  const { project, outputGcsUri } = config
+
+  // listObjects 가 던지면 미들웨어 catch 가 400 { error, detail } 로 내려준다
+  const all = await listObjects(project, outputGcsUri)
+  const media = all
+    .filter((o) => !o.name.endsWith('/') && classifyObject(o) !== null)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, GALLERY_MAX)
+
+  if (!media.length) {
+    return {
+      items: [],
+      note: `${outputGcsUri} 아래에 전시할 사진·영상이 아직 없습니다 (오브젝트 ${all.length}개 스캔).`,
+    }
+  }
+
+  // 서명 URL 대신 서버 프록시(/api/gallery/media) 로 스트리밍한다 — 갤러리는
+  // 관리자가 IAP + AdminGate 뒤에서만 보므로 IAP 를 우회하는 서명 URL 이 필요 없다.
+  return {
+    items: media.map((o) => ({
+      object: o.name,
+      type: classifyObject(o)!,
+      url: `/api/gallery/media?object=${encodeURIComponent(o.name)}`,
+      createdAt: o.createdAt,
+    })),
+  }
+}
+
+/** object 가 버킷의 output/ 접두사 안에 있는지 확인하고 gs:// URI + project 로 바꾼다 */
+function resolveGalleryObject(
+  config: OmniConfig,
+  object: string,
+): { gsUri: string; project: string } {
+  if (config.mode !== 'vertex' || !config.outputGcsUri) {
+    throw new Error('갤러리는 배포 환경에서만 사용할 수 있습니다')
+  }
+  const { bucket, object: prefix } = parseGsUri(config.outputGcsUri)
+  const clean = (object ?? '').replace(/^\/+/, '')
+  const guard = prefix.endsWith('/') ? prefix : `${prefix}/`
+  if (!clean || clean.includes('..') || !clean.startsWith(guard)) {
+    throw new Error('허용되지 않은 오브젝트 경로입니다')
+  }
+  return { gsUri: `gs://${bucket}/${clean}`, project: config.project }
+}
+
+async function deleteGalleryObject(config: OmniConfig, object: string): Promise<void> {
+  const { gsUri, project } = resolveGalleryObject(config, object)
+  await deleteObject(project, gsUri)
+}
+
+/** 갤러리 미디어를 GCS 에서 바로 스트리밍한다 (Range 지원 — Safari 영상 재생용). */
+async function serveGalleryMedia(
+  res: ServerResponse,
+  config: OmniConfig,
+  object: string,
+  rangeHeader: string | undefined,
+): Promise<void> {
+  let gsUri: string
+  let project: string
+  try {
+    ;({ gsUri, project } = resolveGalleryObject(config, object))
+  } catch (err) {
+    json(res, 400, { error: err instanceof Error ? err.message : String(err) })
+    return
+  }
+
+  let stat: { size: number; contentType: string }
+  try {
+    stat = await statObject(project, gsUri)
+  } catch {
+    json(res, 404, { error: '오브젝트를 찾을 수 없습니다' })
+    return
+  }
+
+  // 스트림 도중 GCS 오류(오브젝트 삭제 등)로 프로세스가 죽지 않게 막는다
+  const pipeStream = (range?: { start: number; end: number }) => {
+    const stream = objectReadStream(project, gsUri, range)
+    stream.on('error', (err) => {
+      console.warn('[gallery] 스트리밍 중단:', err instanceof Error ? err.message : err)
+      res.destroy()
+    })
+    stream.pipe(res)
+  }
+
+  const match = rangeHeader ? /bytes=(\d*)-(\d*)/.exec(rangeHeader) : null
+  if (match && stat.size) {
+    const start = match[1] ? Number(match[1]) : 0
+    const end = match[2] ? Number(match[2]) : stat.size - 1
+    if (start >= stat.size || end >= stat.size || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` })
+      res.end()
+      return
+    }
+    res.writeHead(206, {
+      'Content-Type': stat.contentType,
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'private, max-age=300',
+    })
+    pipeStream({ start, end })
+    return
+  }
+
+  const headers: Record<string, string | number> = {
+    'Content-Type': stat.contentType,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'private, max-age=300',
+  }
+  if (stat.size) headers['Content-Length'] = stat.size
+  res.writeHead(200, headers)
+  pipeStream()
+}
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
@@ -172,7 +338,8 @@ function parseTryOnOptions(raw: unknown): TryOnOptions {
   const products = parseImages(Array.isArray(body.products) ? body.products : [])
   if (!products.length) throw new Error('의상 사진을 넣어주세요')
 
-  return { person, products: products.slice(0, 2) }
+  // virtual-try-on-001 은 productImage 를 하나만 받는다 — 한 벌만 넘긴다
+  return { person, products: products.slice(0, 1) }
 }
 
 /**
@@ -249,6 +416,7 @@ function startJob(config: OmniConfig, opts: GenerateOptions, outDir: string): Jo
       job.stage = '완료'
       job.videoUrl = `/output/${result.fileName}`
       job.downloadUrl = result.downloadUrl
+      job.downloadError = result.downloadError
       job.interactionId = result.interactionId
 
       // 다음 확장 요청이 남은 길이를 판정할 수 있게 체인 누적을 기록한다
@@ -372,6 +540,28 @@ export function createApiMiddleware(config: OmniConfig, outDir: string) {
         }
         const opts = parseTryOnOptions(await readBody(req))
         json(res, 200, await generateTryOn(config, opts))
+        return
+      }
+
+      // ── Media Gallery (§4) ──
+      if (pathname === '/api/gallery/media' && req.method === 'GET') {
+        await serveGalleryMedia(
+          res,
+          config,
+          url.searchParams.get('object') ?? '',
+          req.headers.range,
+        )
+        return
+      }
+
+      if (pathname === '/api/gallery' && req.method === 'GET') {
+        json(res, 200, await listGallery(config))
+        return
+      }
+
+      if (pathname === '/api/gallery' && req.method === 'DELETE') {
+        await deleteGalleryObject(config, url.searchParams.get('object') ?? '')
+        json(res, 200, { ok: true })
         return
       }
 

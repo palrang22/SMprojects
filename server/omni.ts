@@ -42,6 +42,8 @@ export type GenerateResult = {
   fileName: string
   /** IAP 를 거치지 않는 GCS 서명 URL — QR 다운로드용. 서명 실패 시 없음. */
   downloadUrl?: string
+  /** 서명 실패 시 원인 전문 — 클라이언트 "오류 보기" 용 */
+  downloadError?: string
   /** 결과 영상의 gs:// 경로. 이걸 다음 확장 요청의 입력으로 넣는다 */
   videoGcsUri?: string
 }
@@ -271,6 +273,7 @@ export async function generateVideo(
   const filePath = path.join(outDir, fileName)
 
   let downloadUrl: string | undefined
+  let downloadError: string | undefined
   // 다음 확장 요청의 입력이 된다
   const videoGcsUri = video.uri?.startsWith('gs://') ? video.uri : undefined
 
@@ -284,8 +287,12 @@ export async function generateVideo(
     onStage?.('GCS 에서 내려받는 중')
     await downloadFromGcs(video.uri, project, filePath)
     // QR 다운로드용 — 우리 앱(IAP 뒤)을 거치지 않는 직행 링크.
-    // 버킷에 쓰기/서명 권한이 없는 로컬 dev 등에서는 null 이 돌아올 수 있다.
-    downloadUrl = (await createSignedUrl(project, video.uri)) ?? undefined
+    // 버킷에 쓰기/서명 권한이 없는 로컬 dev 등에서는 null + error 가 돌아온다.
+    {
+      const signed = await createSignedUrl(project, video.uri)
+      downloadUrl = signed.url ?? undefined
+      downloadError = signed.error
+    }
   } else if (video.uri) {
     // Gemini API — Files API 가 ACTIVE 가 될 때까지 기다린 뒤 내려받는다
     const match = /files\/([a-zA-Z0-9_-]+)/.exec(video.uri)
@@ -301,5 +308,5 @@ export async function generateVideo(
     throw new Error('응답에 영상 데이터도 URI 도 없습니다')
   }
 
-  return { interactionId: interaction.id, fileName, downloadUrl, videoGcsUri }
+  return { interactionId: interaction.id, fileName, downloadUrl, downloadError, videoGcsUri }
 }

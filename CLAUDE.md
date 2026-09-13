@@ -12,13 +12,14 @@
 
 | # | 스튜디오 | 라우트 | 모델/API | 강조색 | 상태 |
 |---|---|---|---|---|---|
-| 01 Video | **Motion Studio** | `/video` | `gemini-omni-1.1-flash-preview` | Google red | 🟡 개발 중 |
-| 02 Image | **Look Studio** | `/image` | Virtual Try-On | Google blue | ⬜ 자리표시자 |
-| 03 Audio | **Voice Studio** | `/audio` | Gemini Live | Google yellow | ⬜ 자리표시자 |
+| 01 Video | **Motion Studio** | `/video` | `gemini-omni-1.1-flash-preview` | Google red | 🟢 실호출 성공 |
+| 02 Image | **Look Studio** | `/image` | `virtual-try-on-001` (Vertex 전용, `us-central1`) | Google blue | 🟢 실호출 성공 |
+| 03 Audio | **Voice Studio** | `/audio` | `gemini-live-2.5-flash` (WS 프록시) | Google yellow | 🟢 실호출 성공 |
 
-행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것.
+세 스튜디오 모두 UI·실호출 검증 완료 (2026-08-26). 부스(2026-09-14) 전까지 할 개선 작업은 `PLAN.md` 참고.
 
-**하나씩 순서대로** 개발한다. 상세 구현 방식은 대부분 미정 — `PLAN.md` 참고.
+행사일은 **2026-09-14 (월)**. 스튜디오 이름은 시안에서 온 것이니 임의로 바꾸지 말 것
+(2026-09-07 에 변경 시도했다가 사용자가 원복 — 기존 이름 유지).
 
 ### 체험자 · 컨셉 방향
 
@@ -40,9 +41,12 @@
 Vite + React 19 + TypeScript, pnpm.
 
 ```bash
-pnpm dev      # 개발 서버 (API 라우트 포함)
-pnpm build    # tsc -b && vite build
-pnpm lint     # eslint
+pnpm dev           # 개발 서버 (Vite + API 라우트 + Live WS 미들웨어)
+pnpm build         # tsc -b && vite build && pnpm build:server
+pnpm build:server  # tsconfig.server.json — server/ 를 dist-server/ 로 emit
+pnpm start         # node dist-server/index.js — 배포와 동일한 프로덕션 서버
+pnpm lint          # eslint
+pnpm optimize:samples  # public/samples/**/*.png → webp (긴 변 1536px). 원본은 samples-original/ 에 백업 후 삭제
 ```
 
 변경 후에는 `pnpm build`와 `pnpm lint`를 돌려서 통과하는지 확인할 것.
@@ -50,21 +54,34 @@ pnpm lint     # eslint
 ## GCP 설정 (이미 되어 있음 — 다시 만들지 말 것)
 
 ```
-프로젝트  kktae-demo                   (2026-08-27 프로젝트 변경 — 이전 gcp-a-presales-ge-20260521 아님)
-계정      kseungh@mz.co.kr             (회사 계정. 개인 Gmail 아님)
+프로젝트  minling-ai-day-project       (2026-09-10 프로젝트 이전 — 이전 kktae-demo 아님. 프로젝트 번호 926665583116)
+계정      kseungh@mz.co.kr             (회사 계정. 이 프로젝트에선 Owner)
 인증      Vertex AI + ADC              (API 키 아님)
 리전      global                       (Vertex 호출 리전. Cloud Run 배포 리전(asia-northeast3)과 다름)
-버킷      gs://smproject-sh/output
+버킷      gs://smproject-sh2/output    (asia-northeast3. 이름이 smproject-sh 가 아닌 이유: 버킷명은
+                                        전역 유일 + 구 프로젝트가 30일 삭제 대기라 smproject-sh 재사용 불가)
 ```
 
-- 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project kktae-demo` 로 이미 잡혀 있다.
-- 버킷은 이 프로젝트 안에 새로 만든 것. **30일 자동 삭제 정책을 걸어야 한다** (아직 미확인).
-- ⚠️ **`kktae-demo`는 전용 프로젝트가 아니라 선배의 기존 프로젝트다.** 이전 프로젝트
-  (`gcp-a-presales-ge-20260521`) 때와 같은 원칙 적용: **우리가 만든 리소스(서비스 계정
-  `smprojects-*`, 버킷 `smproject-sh`)만 건드리고, 이미 있던 다른 리소스는 절대 만지지 말 것.**
-  IAM 정책 조회(`add-iam-policy-binding` 실행 시 뜬 기존 조건부 바인딩 등)로 다른 용도
-  (`cloudbuild-connection-setup`, `Create Studio Asset Metadata DB` 등)가 이미 돌고 있는 게
-  확인됨. 예산·쿼터도 선배 프로젝트 계정으로 잡히니 비용 지출 전 확인 원칙은 그대로 유지.
+- 인증은 `gcloud auth application-default login` + `gcloud auth application-default set-quota-project minling-ai-day-project` 로 이미 잡혀 있다.
+- 버킷은 이 프로젝트 안에 새로 만든 것. **자동 삭제 규칙은 두지 않는다** (합의 D6). 부스 결과물은
+  행사 종료 후 스태프가 수동으로 비운다 — 동의 팝업이 약속한 내용이므로 체크리스트에 있다 (`PLAN.md`).
+- **런타임 서비스 계정** `smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com`
+  (이름 **단수** `smproject-` 주의 — kktae-demo 때는 `smprojects-` 였다). 보유 역할:
+  - Vertex 호출용 역할 (콘솔 표기 "Agent Platform User" — `roles/aiplatform.user` 계열)
+  - `roles/storage.objectAdmin` — **버킷 `smproject-sh2` 한정** 바인딩 (프로젝트 레벨 아님)
+  - `roles/iam.serviceAccountTokenCreator` — self-bind, 서명 URL(signBlob)용
+  - 프로젝트 레벨 `Editor` 는 **안 줬다** (공용 프로젝트 — 최소권한). kktae-demo 때와 다른 점.
+  로컬 `pnpm dev` 는 개인 ADC 라 Vertex·스토리지는 되고, 서명만 `GCS_SIGNER_SA`
+  (`.env.local`) impersonate 로 — 내 계정이 SA 에 token creator 를 가져야 동작 (아직 없음, 배포본에선 불필요).
+- **소스 배포용** 기본 compute SA `926665583116-compute@developer.gserviceaccount.com` 에
+  `roles/cloudbuild.builds.builder` 를 수동 부여했다 — `gcloud run deploy --source` 가 이 SA 로
+  Cloud Build 를 돌리는데, 조직 정책상 기본 SA 자동 역할 부여가 꺼져 있어서 직접 준 것.
+- ⚠️ **`minling-ai-day-project` 도 이 앱 전용이 아니라 공용 프로젝트다.** kktae-demo 때와 같은
+  원칙: **우리가 만든 리소스(SA `smproject-ai-runner`, 버킷 `smproject-sh2`, Cloud Run
+  `smprojects-sh`, Artifact Registry `cloud-run-source-deploy`)만 건드리고, 이미 있던 다른
+  리소스는 절대 만지지 말 것.** 예산·쿼터도 공용 계정으로 잡히니 비용 지출 전 확인 원칙 유지.
+- 구 배포(`kktae-demo` 의 `smprojects-sh` / `smproject-sh` 버킷 / `smprojects-ai-runner` SA)는
+  사용자가 직접 정리한다. 이전 프로젝트: `kktae-demo` ← `gcp-a-presales-ge-20260521` (둘 다 폐기).
 
 ## 접근 제어 — IAP
 
@@ -74,6 +91,12 @@ pnpm lint     # eslint
 - **Cloud Run 에 IAP 를 직접** 건다 (2026 GA. 로드밸런서 불필요)
 - 허용 대상: 주 구성원 `domain:mz.co.kr` + 역할 `roles/iap.httpsResourceAccessor`
 - 앱 안에서 로그인 기능을 따로 만들지 말 것. IAP 가 이미 인증을 끝낸다.
+- **OAuth 클라이언트는 커스텀(직접 만든 것)이다.** `minling-ai-day-project` 의 조직 도메인이
+  `mz.co.kr` 이 아니라서 동의 화면을 **External** 로 두고 OAuth 2.0 클라이언트 ID 를 직접 만들어
+  IAP 에 연결했다 (Google-managed 클라이언트는 Internal 동의 화면에서만 됨). 리디렉션 URI 는
+  `https://iap.googleapis.com/v1/oauth/clientIds/<CLIENT_ID>:handleRedirect`.
+- `server/iap.ts` 검증용 `IAP_AUDIENCE` (Cloud Run env):
+  `/projects/926665583116/locations/asia-northeast3/services/smprojects-sh`
 
 IAP 통과 후 요청에 붙는 헤더:
 
@@ -86,27 +109,61 @@ X-Goog-IAP-JWT-Assertion        : <서명된 JWT>
 앞의 두 개는 스푸핑 가능하다. **신뢰해야 할 것은 `X-Goog-IAP-JWT-Assertion` 서명 검증 결과다.**
 사용자별 호출 상한·로깅에 이 신원을 쓴다.
 
+### 관리자 화면 (`/settings`·`/gallery`) 비번 게이트
+
+`src/lib/admin.ts` 의 `ADMIN_PASSWORD = "aprk12!"` (`AdminGate` 컴포넌트가 검사, `/settings`·`/gallery`
+공유) — **브라우저에서만 비교하고 번들에 평문으로 들어간다. 이건 의도된 것이니 서버로 옮기지 말 것.**
+보안 장치가 아니라 "실수로 들어가는 것"을 막는 덮개일 뿐이고, `VITE_` 든 아니든 env 로 옮겨도
+클라이언트가 검증하는 한 노출은 똑같다. 실질 접근 제어는 위 IAP 도메인 제한이 한다.
+
+- 킬 스위치·레이트리밋처럼 **정말 막아야 하는 인가 판단**은 `server/iap.ts` 의
+  `getIapIdentity()` (IAP JWT 검증) 로 하고, 비번 게이트에 얹지 않는다.
+
 > **GCP 콘솔 작업은 사용자가 직접 한다.** 코드/CLI 로 리소스를 만들지 말고,
 > 콘솔에서 뭘 눌러야 하는지 절차를 알려줄 것.
 
 ## 아키텍처
 
 ```
+server/index.ts         프로덕션 서버 (Cloud Run). dist/ 정적 + /api/* + Live WS 를 한 프로세스로.
+                        PORT 존중, 0.0.0.0 바인딩, /health(GET·HEAD), SPA 폴백, 경로 탈출 방어
+server/api.ts           API 라우트 + 인메모리 잡 스토어. dev(vite.config.ts)·배포(index.ts) 양쪽이 이 미들웨어를 공유.
+                        /api/gallery (GET 목록 · DELETE 삭제) + /api/gallery/media (GCS 프록시 스트리밍, 서명 URL 안 씀) = §4
 server/config.ts        인증 방식 판별 (Vertex AI ↔ API 키, 환경변수 한 줄로 전환)
-server/omni.ts          Gemini SDK 래퍼. GCS/Files API 다운로드까지
-server/api.ts           개발용 API 라우트 + 인메모리 잡 스토어
-vite.config.ts          위 미들웨어를 dev 서버에 마운트 (apply: 'serve')
+server/client.ts        인증 모드별 SDK 클라이언트 생성 (locationOverride 로 모델별 리전 분기)
+server/omni.ts          01 Motion Studio. Omni Flash 래퍼 + GCS/Files API 다운로드
+server/tryon.ts         02 Look Studio. recontextImage 래퍼 (Vertex 전용, us-central1). 동기 호출
+server/live.ts          03 Voice Studio. 브라우저 ⇄ 우리 WS ⇄ ai.live.connect() 프록시
+server/gcs.ts           GCS 헬퍼 (omni 다운로드 / tryon 업로드·서명 URL / gallery 목록·삭제·프록시 스트리밍)
+server/iap.ts           X-Goog-IAP-JWT-Assertion 서명 검증 (jose). IAP_AUDIENCE 없으면 no-op
+server/errors.ts        SDK 에러 원문 추출 ("에러코드 확인하기" 용)
+vite.config.ts          dev 서버에 위 미들웨어 + Live WS 를 마운트 (apply: 'serve')
 
-src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용
-src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태)
+src/App.tsx             라우터 + 셸. 허브에서만 .main-split (2열) 적용. 스튜디오는 ConsentGate, /gallery 는 AdminGate 로 감쌈
+src/components/Rail.tsx 좌측 64px 레일 (NavLink 활성 상태) + 테마 토글 + 갤러리·관리자 진입
+src/components/ConsentGate.tsx  스튜디오 진입 전 동의 모달 (매 진입마다, 합의 D5)
+src/components/AdminGate.tsx    관리자 비번 게이트 래퍼 (/settings·/gallery 공유). 로직은 src/lib/admin.ts
+src/components/PersonPicker.tsx  인물 입력 (샘플/촬영/업로드) — 01·02 공유
 src/components/Icons.tsx 시안에서 가져온 라인 아이콘
+src/lib/admin.ts       관리자 비번(aprk12!)·세션 판정 — §접근 제어 참고 (클라이언트 전용 덮개)
+src/lib/theme.ts, ThemeProvider.tsx  다크/라이트 (data-theme + localStorage)
+src/lib/image.ts, audio.ts  이미지 읽기 / PCM 캡처·재생 유틸. image.ts `shrink()` 는 모델로 보내기 전 긴 변 1920px 로 줄이고, PNG/JPEG 가 아니면(=샘플 webp) 크기와 무관하게 JPEG 로 재인코딩 (함정 7)
+src/lib/errorReport.ts  원본 에러를 새 탭에 띄우는 유틸 (ErrorBanner·DownloadQr 공유)
+src/lib/concepts.ts    01 컨셉 (버튼 → prompt 자동 채움 + 배경 refImages + 옷 outfits). 시나리오는 시안, 프롬프트 문구는 Omni 1.1 prompt guide 에 맞춰 작성 (규칙은 파일 상단 주석 — 영어·<IMAGE_REF_N> 태그·타임코드)
+src/lib/garments.ts    02 샘플 의상 (폴더별 섹션). public/samples/look-studio/
 src/routes/Hub.tsx      랜딩 — 히어로 + 스튜디오 3개 카드
-src/routes/MotionStudio.tsx  체험 1 (Omni Flash)
-src/routes/ComingSoon.tsx    체험 2·3 자리표시자
+src/routes/MotionStudio.tsx  01 (Omni Flash, 잡 폴링) — 인물+컨셉 선택, 확장 모드는 사진 추가
+src/routes/LookStudio.tsx    02 (Virtual Try-On, 동기) — 인물 + 샘플 의상 최대 2벌
+src/routes/VoiceStudio.tsx   03 (Gemini Live, WebSocket)
+src/routes/Settings.tsx      관리자 화면 (/settings). AdminGate 로 감쌈 — §접근 제어 참고
+src/routes/Gallery.tsx       §4 Media Gallery (/gallery). 01·02 결과 슬라이드쇼, /api/gallery 폴링. AdminGate 뒤
+src/routes/ComingSoon.tsx    미사용. 컷라인 대비로 남겨둠
 src/styles/hub.css      시안 CSS. 디자인 토큰(:root)이 여기 있다
 src/styles/studio.css   스튜디오 UI. 위 토큰으로 재매핑해서 톤을 맞춘다
 
-public/                 로고 SVG (SM CI, Google Cloud). 절대경로로 참조
+scripts/optimize-samples.mjs  public/samples/**/*.png → webp (긴 변 1536px, sharp). 원본은 samples-original/ 로 백업 후 삭제. `pnpm optimize:samples`
+Dockerfile              멀티스테이지 (deps → builder → runner). CMD node dist-server/index.js
+public/                 로고 SVG (SM CI, Google Cloud) + samples/ (webp, 절대경로로 참조). 원본 PNG 백업은 samples-original/ (.gitignore)
 docs/design/            원본 HTML 시안 (빌드 미포함)
 docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
 ```
@@ -125,17 +182,46 @@ docs/GCP-INFRA-GUIDE.md 선배 프로젝트 인프라 가이드
 `.reveal.d1~d6` 는 순차 등장 애니메이션. JS 없이 CSS 만으로 동작하고
 `prefers-reduced-motion` 대응도 들어 있다.
 
+**테마**: 기본 **다크 고정**. OS 설정(`prefers-color-scheme`)은 보지 않고,
+저장값(`localStorage` `sm-theme`)이 있을 때만 그걸 쓴다. 라이트는 레일 토글로만.
+규칙은 `src/lib/theme.ts` `readInitialTheme()` 과 `index.html` 인라인 스크립트 두 곳에 동일하게.
+
+**허브 2열 레이아웃**: `.main-split` 은 `900px` 이하에서만 1열로. 그 위(13" 노트북 포함)는
+좌우 패딩을 `clamp()` 로 줄여 2열 유지.
+
 ### 잡(job) 구조를 쓰는 이유
 
 영상 생성은 수 분짜리 LRO다. HTTP 요청 하나로 기다리면 타임아웃에 걸린다.
 `POST /api/generate` 는 즉시 `jobId` 만 반환하고 프론트가 `GET /api/jobs/:id` 를 폴링한다.
-`docs/GCP-INFRA-GUIDE.md` §1.2 의 패턴. **체험 2·3번도 오래 걸리면 같은 구조로 갈 것.**
+`docs/GCP-INFRA-GUIDE.md` §1.2 의 패턴. 01 만 이 구조다 — 02 는 동기 호출(`/api/tryon`),
+03 은 WebSocket(`/api/live`) 이라 잡 스토어를 쓰지 않는다.
 
-### ⚠️ 지금은 배포 불가 상태
+### 배포
 
-`server/api.ts` 는 Vite dev 서버 전용(`apply: 'serve'`)이라 `pnpm build` 결과물에 안 들어간다.
-Cloud Run 에 올리려면 **정적 파일과 API 를 함께 서빙하는 실제 서버**가 필요하다.
-IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이다.
+정적 파일 + API + Live WS 를 한 프로세스에서 서빙하는 실제 서버(`server/index.ts`)와
+`Dockerfile` 이 있고, **Cloud Run 에 배포 완료 + IAP 설정 + 스튜디오 3종·갤러리 실호출 검증까지 완료**
+(2026-09-10, `minling-ai-day-project` 로 이전하며 재검증).
+
+- `pnpm build` 가 `dist/`(프론트) + `dist-server/`(서버)를 만든다. `pnpm start` 로 로컬에서
+  배포와 동일하게 띄울 수 있다.
+- **배포 방식**: Cloud Build. 프로젝트 루트에서
+  ```
+  gcloud run deploy smprojects-sh --source . \
+    --project minling-ai-day-project --region asia-northeast3 \
+    --service-account smproject-ai-runner@minling-ai-day-project.iam.gserviceaccount.com \
+    --no-allow-unauthenticated \
+    --min-instances 1 --max-instances 1 \
+    --concurrency 80 --cpu 1 --memory 512Mi --timeout 300 --cpu-boost \
+    --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=minling-ai-day-project,GOOGLE_CLOUD_LOCATION=global,GOOGLE_CLOUD_OUTPUT_GCS_URI=gs://smproject-sh2/output
+  ```
+  `--source .` 가 `Dockerfile` 로 빌드(buildpacks 아님) → Artifact Registry `cloud-run-source-deploy`
+  (자동 생성) → 배포. `IAP_AUDIENCE` 는 배포 후 `gcloud run services update ... --update-env-vars` 로 추가.
+- **인스턴스 1개 고정**(`--min/max-instances 1`)은 의도된 것 — `server/api.ts` 의 인메모리 잡
+  스토어(01 폴링)가 인스턴스 간 공유가 안 된다. 트래픽 없어도 1개가 상시 과금됨.
+- 남은 검증: **GCS 서명 URL(QR 다운로드)** 이 런타임 SA self-bind 로 실제 동작하는지 (Look Studio 1회).
+- IAP 는 배포된 서비스에 직접 걸려 있다. `server/iap.ts` 가 JWT 를 검증하려면 `IAP_AUDIENCE`
+  (위 §접근 제어에 실제 값) 가 있어야 한다 (없으면 no-op). 지금 코드는 라우트 차단 없이 로깅만 —
+  실제 인가 판단(킬 스위치·레이트리밋)은 이 신원으로 나중에 붙인다.
 
 ### 인증 모드 전환
 
@@ -161,6 +247,10 @@ IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이�
    무시해서, 앞 영상과 무관한 새 영상이 나오는데도 정상처럼 보인다 (문서의 멀티턴 확장
    예시는 Gemini API 키 기준이다). 앞 영상의 `gs://` 를 `document` 입력으로 직접 넣어야
    한다. 확인은 응답 `usage.input_tokens_by_modality` 에 `video` 가 잡히는지로 한다.
+7. **`virtual-try-on-001` 등 Vertex 이미지 API 는 PNG/JPEG 만 문서상 보장한다.** 샘플 이미지는
+   `.webp` 로 최적화돼 있으므로(로딩 속도), `src/lib/image.ts` `shrink()` 가 모델로 보내기 전
+   webp 를 항상 canvas → JPEG 로 재인코딩한다. webp 를 그대로 payload 에 실으면 Try-On 이
+   거부할 수 있다. Omni(Gemini 계열)는 webp 를 받지만 일관성을 위해 같은 경로를 쓴다.
 
 ## 비용 — 중요
 
@@ -183,9 +273,21 @@ IAP 는 배포된 서비스에만 걸 수 있으므로 이게 선행 작업이�
 - 주석과 UI 문구는 한국어. 코드 식별자는 영어.
 - 검증하지 않은 것을 "됐다"고 말하지 말 것. 못 돌려본 경로는 그렇다고 명시한다.
 
+## 결정 · 합의 — `docs/consensus/`
+
+대화 중 **사용자 결정이 필요한 사항**이 나오면 `PLAN.md` 에 "미정"으로 남기지 말고
+`docs/consensus/<YYYY-MM-DD>-<주제>.md` 파일을 새로 만든다.
+
+- 질문마다 선택지를 **A / B / C …** 로 정리하고 추천안을 표시한다.
+- 각 항목에 `**답변:**` 빈 줄을 둔다. 사용자가 거기 적으면 그대로 코드·`PLAN.md`·`CLAUDE.md` 에 반영한다.
+- 파일 상단에 진행 상태(`미해결 (n/m)` → `해결됨 · 날짜`)를 적는다.
+- `PLAN.md` 본문에는 **확정된 내용만.** 미정 항목은 `합의 D3` 처럼 합의 파일 ID 로 링크만 건다.
+- 사용자는 이 파일들을 보고 답하고, 나는 그 답을 바로 읽어 반영한다.
+
 ## 참고
 
-- `PLAN.md` — 로드맵, 미정 사항, 리스크
+- `PLAN.md` — 부스 전까지 할 일 (확정된 것만)
+- `docs/consensus/` — 사용자 결정 대기/완료 목록 (위 §결정·합의)
 - `docs/GCP-INFRA-GUIDE.md` — 선배 프로젝트(`veo-dashboard`)를 분석한 인프라 가이드.
   §2 인증, §5 배포 대상, §9 장시간 작업, §12 안티패턴이 특히 유용하다.
   단 **"선배가 한 것"과 "이렇게 해라"가 섞여 있으니** 구분해서 읽을 것.

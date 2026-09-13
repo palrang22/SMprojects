@@ -184,19 +184,45 @@ code {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow);
+  max-width: calc(100vw - 2rem);
 }
 
-.qr-popover img {
-  width: 140px;
-  height: 140px;
-  border-radius: 6px;
+/* 좁은 화면에서 320px QR 이 뷰포트를 넘지 않게 축소 (260px 까지는 디코딩 확인됨) */
+@media (max-width: 420px) {
+  .qr-canvas,
+  .qr-canvas canvas,
+  .qr-popover .qr-loading {
+    width: 260px !important;
+    height: 260px !important;
+    min-width: 0;
+  }
+}
+
+/* qr-code-styling 이 canvas 를 여기 append 한다. 생성은 2배 해상도(640px)로
+   뜨고 표시만 320px 로 줄여 레티나에서도 또렷하게. 흰 배경 + 패딩은 quiet zone. */
+.qr-canvas {
+  width: 320px;
+  height: 320px;
+  border-radius: 8px;
   background: #fff;
-  padding: 6px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-canvas[data-status="rendering"] {
+  opacity: 0.4;
+}
+
+.qr-canvas canvas {
+  width: 320px !important;
+  height: 320px !important;
+  display: block;
 }
 
 .qr-popover .qr-loading {
-  width: 140px;
-  height: 140px;
+  min-width: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -204,10 +230,28 @@ code {
   opacity: 0.6;
 }
 
+.qr-popover .qr-save {
+  margin-left: 0;
+}
+
 .qr-popover span:not(.qr-loading) {
   font-size: 0.75rem;
   opacity: 0.7;
   white-space: nowrap;
+}
+
+/* 서명 URL 생성 실패 — "오류 보기" 로 원본 에러를 새 탭에 띄운다 */
+.qr-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+  text-align: center;
+}
+
+.qr-fail .banner-detail {
+  margin-left: 0;
 }
 
 /* ── 입력부 ─────────────────────────────────────── */
@@ -301,6 +345,56 @@ textarea:focus-visible {
 .examples button:hover {
   border-color: var(--accent-border);
   color: var(--accent);
+}
+
+/* ── 컨셉 칸 — 옷 고르기 (2벌 이상일 때) ─────────
+   옷은 컨셉당 많아야 2벌(상/하 또는 대안 2종)이라, 좁은 그리드 대신
+   칸을 위아래로 꽉 채워 크게 보여준다. */
+.concept-outfits {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.9rem 0.6rem 0.6rem;
+  overflow-y: auto;
+}
+.concept-outfits-hint {
+  flex: none;
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  text-align: center;
+}
+.concept-outfit-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 0.5rem;
+}
+.concept-outfit {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.16s ease;
+}
+.concept-outfit img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.concept-outfit:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+.concept-outfit.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
 }
 
 .attachments {
@@ -492,15 +586,36 @@ textarea:focus-visible {
 }
 
 /* ---------- 02 Look Studio ---------- */
+/* 인물·의상(컨셉) 칸을 바깥 너비에 흩어지지 않게 한 쌍으로 묶어 가운데 정렬하고
+   사이에 + 를 둔다. grid 1fr 시절엔 칸이 각 열 왼쪽으로 쏠려 보였다. */
 .slots {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.slots > .slot {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 285px;
+}
+.slot-plus {
+  flex: none;
+  font-size: 1.4rem;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text);
+  opacity: 0.55;
+  user-select: none;
 }
 
 @media (max-width: 640px) {
   .slots {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+  .slots > .slot {
+    width: 100%;
+    max-width: 320px;
   }
 }
 
@@ -735,6 +850,181 @@ textarea:focus-visible {
   font-weight: 600;
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/* ── 선택한 의상 미리보기 (인물 옆 칸) ─────────── */
+.garment-empty {
+  margin: 0;
+  padding: 0 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+.garment-empty span {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.garment-chosen-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 2px;
+}
+.garment-chosen-grid[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+.garment-chosen-grid[data-count="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+.garment-chosen-item {
+  position: relative;
+  overflow: hidden;
+}
+.garment-chosen-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.garment-chosen-item .slot-clear {
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+}
+
+/* ── 샘플 의상 고르기 (폴더별 섹션 · 스크롤) ───── */
+.garment-picker {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--code-bg);
+  overflow: hidden;
+}
+
+.garment-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text);
+}
+.garment-picker-head span {
+  letter-spacing: 0.04em;
+}
+.garment-upload {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.garment-upload:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.garment-upload:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.garment-note {
+  margin: 0;
+  padding: 0.5rem 0.9rem 0;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.garment-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 0.4rem 0.9rem 0.9rem;
+}
+
+.garment-section + .garment-section {
+  margin-top: 0.5rem;
+}
+.garment-section h4 {
+  margin: 0.7rem 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.garment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 0.5rem;
+}
+
+.garment-cell {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.16s ease;
+}
+.garment-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.garment-cell:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+.garment-cell:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.garment-cell.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.garment-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.garment-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.55rem 0.4rem 0.28rem;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: #fff;
+  text-align: center;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── 샘플 인물 팝업 (3 × 2) ───────────────────── */
@@ -1121,4 +1411,273 @@ textarea:focus-visible {
 
 .banner-detail:hover {
   opacity: 1;
+}
+
+/* ---------- Media Gallery (§4) ---------- */
+.studio.gallery {
+  --accent: var(--g-green);
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+.gallery-msg {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--fog);
+}
+.gallery-note {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  max-width: 32rem;
+}
+
+.gallery-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* 크로스페이드 레이어 — 스택으로 겹쳐두고 앞 레이어만 페이드 인 */
+.gallery-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: opacity, transform;
+}
+.gallery-layer.back {
+  z-index: 1;
+  animation: gallery-out 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.gallery-layer.front {
+  z-index: 2;
+  animation: gallery-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes gallery-in {
+  from {
+    opacity: 0;
+    transform: scale(1.035);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes gallery-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+.gallery-media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* 정지 이미지엔 느린 켄번스 드리프트 — 전시대에서 "살아있는" 느낌.
+   12s 로 잡아 노출 시간(IMAGE_MS 5s) 안에 끝나지 않으므로 튐 없음. 영상엔 안 건다.
+   front/back 공통 선택자 — 떠나는 이미지도 페이드 도중 드리프트를 이어간다(스냅 방지). */
+.gallery-layer img.gallery-media {
+  animation: gallery-kenburns 12s ease-out forwards;
+}
+@keyframes gallery-kenburns {
+  from {
+    transform: scale(1) translateY(0);
+  }
+  to {
+    transform: scale(1.09) translateY(-1.8%);
+  }
+}
+
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.24s ease,
+    background 0.16s ease;
+}
+.gallery-nav.on {
+  opacity: 0.7;
+}
+.gallery-nav:hover {
+  background: rgba(0, 0, 0, 0.68);
+  opacity: 1;
+}
+.gallery-nav.prev {
+  left: 1.2rem;
+}
+.gallery-nav.next {
+  right: 1.2rem;
+}
+.gallery-nav svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.gallery-nav.prev svg {
+  transform: rotate(180deg);
+}
+
+.gallery-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.4rem;
+  font-size: 0.85rem;
+  color: #fff;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
+  transform: translateY(100%);
+  transition: transform 0.28s ease;
+}
+.gallery-bar.on {
+  transform: translateY(0);
+}
+.gallery-kind,
+.gallery-when {
+  opacity: 0.7;
+}
+.gallery-del {
+  margin-left: auto;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+.gallery-del:hover:not(:disabled) {
+  background: var(--g-red);
+  border-color: var(--g-red);
+}
+.gallery-del:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 삭제 확인 — 복구 불가 안내 */
+.gallery-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+.gallery-confirm-card {
+  max-width: 22rem;
+  width: 100%;
+  padding: 1.6rem 1.5rem 1.3rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  text-align: center;
+}
+.gallery-confirm-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: var(--text-h);
+}
+.gallery-confirm-sub {
+  margin: 0 0 1.2rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.gallery-confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.gallery-confirm-actions button {
+  flex: 1;
+  padding: 0.55rem 1rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+.gallery-confirm-yes {
+  background: var(--g-red);
+  color: #fff;
+}
+.gallery-confirm-yes:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.gallery-confirm-no {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-h);
+}
+.gallery-confirm-no:hover:not(:disabled) {
+  border-color: var(--text);
+}
+.gallery-confirm-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-layer.front {
+    animation: gallery-fade 0.3s ease forwards;
+  }
+  .gallery-layer.back {
+    animation: gallery-fade 0.3s ease reverse forwards;
+  }
+  .gallery-layer img.gallery-media {
+    animation: none;
+  }
+  @keyframes gallery-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .gallery-bar,
+  .gallery-nav {
+    transition: none;
+  }
 }

@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import { DownloadQr } from "../components/DownloadQr.tsx";
+import { PersonPicker } from "../components/PersonPicker.tsx";
 import {
   attachmentFromBase64,
   attachmentFromUrl,
   readAsAttachment,
   type Attachment,
 } from "../lib/image.ts";
+import {
+  GARMENT_SECTIONS,
+  MAX_GARMENTS,
+  type Garment,
+} from "../lib/garments.ts";
 import { ErrorBanner } from "../components/ErrorBanner.tsx";
 import "../styles/studio.css";
 
@@ -16,256 +21,87 @@ type Health = {
   detail: string;
 };
 
-type ResultImage = { data: string; mimeType: string; downloadUrl?: string };
+type ResultImage = {
+  data: string;
+  mimeType: string;
+  downloadUrl?: string;
+  downloadError?: string;
+};
+
+/** 선택한 의상 한 벌. key 로 샘플 중복 선택·해제를 판단한다 (샘플=garment id, 업로드=`upload:<id>`) */
+type Picked = { key: string; att: Attachment };
 
 const dataUrl = (img: ResultImage) => `data:${img.mimeType};base64,${img.data}`;
 
-/** 샘플 인물 — 파일은 public/samples/<id>.png 에 둔다 (3열 × 2행) */
-const SAMPLE_PEOPLE = [
-  { id: "woman_1", label: "여성 1" },
-  { id: "woman_2", label: "여성 2" },
-  { id: "woman_3", label: "여성 3" },
-  { id: "man_1", label: "남성 1" },
-  { id: "man_2", label: "남성 2" },
-  { id: "man_3", label: "남성 3" },
-] as const;
-
-const sampleSrc = (id: string) => `/samples/${id}.png`;
-
-/** 샘플 인물을 3×2 그리드로 크게 보여주는 팝업 */
-function SampleModal({
-  onPick,
-  onClose,
+/** 선택한 의상 미리보기 (0~2벌) — 인물 옆 칸 */
+function ChosenGarments({
+  picked,
+  onRemove,
+  disabled,
 }: {
-  onPick: (a: Attachment) => void;
-  onClose: () => void;
+  picked: Picked[];
+  onRemove: (key: string) => void;
+  disabled: boolean;
 }) {
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  async function choose(id: string, label: string) {
-    setErr(null);
-    setLoadingId(id);
-    try {
-      onPick(await attachmentFromUrl(sampleSrc(id), `${label}.png`));
-    } catch {
-      setErr(`${label} 샘플을 불러오지 못했습니다 — public/samples/${id}.png 를 확인하세요`);
-      setLoadingId(null);
-    }
-  }
-
-  return createPortal(
-    <div className="sample-modal" onClick={onClose}>
-      <div
-        className="sample-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="샘플 인물 선택"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sample-modal-head">
-          <h2>샘플 인물 선택</h2>
-          <button
-            type="button"
-            className="sample-modal-close"
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="sample-grid">
-          {SAMPLE_PEOPLE.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className="sample-cell"
-              onClick={() => void choose(s.id, s.label)}
-              disabled={loadingId !== null}
-            >
-              <img
-                src={sampleSrc(s.id)}
-                alt={s.label}
-                onError={(e) => {
-                  e.currentTarget.style.visibility = "hidden";
-                }}
-              />
-              <span>{loadingId === s.id ? "불러오는 중…" : s.label}</span>
-            </button>
+  return (
+    <div className={picked.length ? "slot filled" : "slot"}>
+      <span className="slot-label">의상 · {picked.length}/{MAX_GARMENTS}</span>
+      {picked.length === 0 ? (
+        <p className="garment-empty">
+          아래에서 의상을 고르세요
+          <br />
+          <span>상의·하의·원피스 중 한 벌</span>
+        </p>
+      ) : (
+        <div className="garment-chosen-grid" data-count={picked.length}>
+          {picked.map((p) => (
+            <div key={p.key} className="garment-chosen-item">
+              <img src={p.att.preview} alt={p.att.name} />
+              <button
+                type="button"
+                className="slot-clear"
+                onClick={() => onRemove(p.key)}
+                disabled={disabled}
+                aria-label={`${p.att.name} 제거`}
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
-        {err && <p className="person-cam-error">{err}</p>}
-      </div>
-    </div>,
-    document.body,
+      )}
+    </div>
   );
 }
 
-/** 인물 입력 — [샘플에서 고르기] / [사진 찍기] / [파일 업로드] */
-function PersonPicker({
-  value,
-  onPick,
-  onClear,
+/** 샘플 의상 고르기 — 폴더별 섹션, 세로 스크롤, 최대 2벌 + 직접 올리기 */
+function GarmentPicker({
+  selectedKeys,
+  full,
+  onToggle,
+  onUpload,
   disabled,
 }: {
-  value: Attachment | null;
-  onPick: (a: Attachment) => void;
-  onClear: () => void;
+  selectedKeys: Set<string>;
+  full: boolean;
+  onToggle: (g: Garment) => void;
+  onUpload: (file: File) => void;
   disabled: boolean;
 }) {
-  const [view, setView] = useState<"idle" | "camera">("idle");
-  const [samplesOpen, setSamplesOpen] = useState(false);
-  const [camError, setCamError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  async function pickFile(file: File) {
-    setCamError(null);
-    try {
-      onPick(await readAsAttachment(file));
-    } catch (err) {
-      setCamError(err instanceof Error ? err.message : "사진을 읽지 못했습니다");
-    }
-  }
-
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  }, []);
-
-  // 언마운트 시 카메라 정리
-  useEffect(() => stopCamera, [stopCamera]);
-
-  // 카메라 뷰로 바뀌면 <video> 가 이제 마운트됐으니 스트림을 붙인다
-  useEffect(() => {
-    if (view !== "camera") return;
-    const video = videoRef.current;
-    if (video && streamRef.current) {
-      video.srcObject = streamRef.current;
-      void video.play().catch(() => {});
-    }
-  }, [view]);
-
-  async function openCamera() {
-    setCamError(null);
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCamError("이 브라우저에서는 카메라를 쓸 수 없습니다 (HTTPS 필요)");
-      return;
-    }
-    try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 960 },
-          height: { ideal: 1280 },
-        },
-        audio: false,
-      });
-      setView("camera");
-    } catch (err) {
-      setCamError(
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "카메라 권한이 거부되었습니다"
-          : "카메라를 열지 못했습니다",
-      );
-    }
-  }
-
-  function closeCamera() {
-    stopCamera();
-    setView("idle");
-  }
-
-  function capture() {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const url = canvas.toDataURL("image/jpeg", 0.92);
-    onPick(
-      attachmentFromBase64(url.slice(url.indexOf(",") + 1), "image/jpeg", "촬영.jpg"),
-    );
-    closeCamera();
-  }
-
-  if (value) {
-    return (
-      <div className="slot filled">
-        <span className="slot-label">인물</span>
-        <img src={value.preview} alt="선택한 인물" />
-        <button
-          type="button"
-          className="slot-clear"
-          onClick={onClear}
-          disabled={disabled}
-          aria-label="인물 제거"
-        >
-          ✕
-        </button>
-      </div>
-    );
-  }
-
-  if (view === "camera") {
-    return (
-      <div className="slot">
-        <span className="slot-label">인물 — 촬영</span>
-        <video ref={videoRef} className="slot-cam" autoPlay playsInline muted />
-        <div className="slot-cam-actions">
-          <button type="button" className="shoot" onClick={capture}>
-            촬영
-          </button>
-          <button type="button" onClick={closeCamera}>
-            취소
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const [err, setErr] = useState<string | null>(null);
 
   return (
-    <div className="slot">
-      <span className="slot-label">인물</span>
-      <div className="person-choices">
+    <div className="garment-picker">
+      <div className="garment-picker-head">
+        <span>샘플 의상에서 고르기</span>
         <button
           type="button"
-          className="person-choice"
-          onClick={() => setSamplesOpen(true)}
-          disabled={disabled}
-        >
-          <span className="ico">👥</span>
-          샘플에서 고르기
-        </button>
-        <button
-          type="button"
-          className="person-choice"
-          onClick={() => void openCamera()}
-          disabled={disabled}
-        >
-          <span className="ico">📷</span>
-          사진 찍기
-        </button>
-        <button
-          type="button"
-          className="person-choice"
+          className="garment-upload"
           onClick={() => fileRef.current?.click()}
-          disabled={disabled}
+          disabled={disabled || full}
         >
-          <span className="ico">＋</span>
-          파일 업로드
+          ＋ 직접 올리기
         </button>
         <input
           ref={fileRef}
@@ -274,83 +110,53 @@ function PersonPicker({
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void pickFile(file);
+            if (file) onUpload(file);
             e.target.value = "";
           }}
         />
       </div>
-      {camError && <p className="person-cam-error">{camError}</p>}
-      {samplesOpen && (
-        <SampleModal
-          onClose={() => setSamplesOpen(false)}
-          onPick={(a) => {
-            onPick(a);
-            setSamplesOpen(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
 
-/** 의상 사진을 하나 받는 업로드 슬롯 */
-function Slot({
-  label,
-  hint,
-  value,
-  onPick,
-  onClear,
-  disabled,
-}: {
-  label: string;
-  hint: string;
-  value: Attachment | null;
-  onPick: (file: File) => void;
-  onClear: () => void;
-  disabled: boolean;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
+      {full && <p className="garment-note">한 벌만 선택할 수 있어요. 바꾸려면 선택을 해제하세요</p>}
 
-  return (
-    <div className={value ? "slot filled" : "slot"}>
-      <span className="slot-label">{label}</span>
-
-      {value ? (
-        <>
-          <img src={value.preview} alt={value.name} />
-          <button
-            type="button"
-            className="slot-clear"
-            onClick={onClear}
-            disabled={disabled}
-            aria-label={`${label} 제거`}
-          >
-            ✕
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className="slot-pick"
-          onClick={() => inputRef.current?.click()}
-          disabled={disabled}
-        >
-          <span className="plus">＋</span>
-          {hint}
-        </button>
-      )}
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onPick(file);
-          e.target.value = "";
-        }}
-      />
+      <div className="garment-scroll">
+        {GARMENT_SECTIONS.map((sec) => (
+          <section key={sec.id} className="garment-section">
+            <h4>{sec.label}</h4>
+            <div className="garment-grid">
+              {sec.items.map((g) => {
+                const on = selectedKeys.has(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className={on ? "garment-cell on" : "garment-cell"}
+                    onClick={() => {
+                      setErr(null);
+                      onToggle(g);
+                    }}
+                    disabled={disabled || (!on && full)}
+                    aria-pressed={on}
+                    title={g.label}
+                  >
+                    <img
+                      src={g.src}
+                      alt={g.label}
+                      loading="lazy"
+                      decoding="async"
+                      onError={() =>
+                        setErr(`${g.label} 이미지를 불러오지 못했습니다 (${g.src})`)
+                      }
+                    />
+                    {on && <span className="garment-check">✓</span>}
+                    <span className="garment-label">{g.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+      {err && <p className="person-cam-error">{err}</p>}
     </div>
   );
 }
@@ -358,7 +164,7 @@ function Slot({
 export function LookStudio() {
   const [health, setHealth] = useState<Health | null>(null);
   const [person, setPerson] = useState<Attachment | null>(null);
-  const [product, setProduct] = useState<Attachment | null>(null);
+  const [picked, setPicked] = useState<Picked[]>([]);
   const [results, setResults] = useState<ResultImage[]>([]);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -368,7 +174,13 @@ export function LookStudio() {
 
   const composerRef = useRef<HTMLElement>(null);
 
-  const ready = Boolean(person && product) && !busy;
+  const selectedKeys = new Set(picked.map((p) => p.key));
+  const full = picked.length >= MAX_GARMENTS;
+  const ready = Boolean(person) && picked.length >= 1 && !busy;
+
+  function removeGarment(key: string) {
+    setPicked((prev) => prev.filter((p) => p.key !== key));
+  }
 
   useEffect(() => {
     fetch("/api/health")
@@ -393,9 +205,34 @@ export function LookStudio() {
     return () => clearInterval(t);
   }, [busy]);
 
-  async function pickProduct(file: File) {
+  /** 샘플 의상 토글 — 이미 선택돼 있으면 해제, 아니면 (2벌 미만일 때) 추가 */
+  async function toggleGarment(g: Garment) {
+    if (picked.some((p) => p.key === g.id)) {
+      removeGarment(g.id);
+      return;
+    }
+    if (picked.length >= MAX_GARMENTS) return;
     try {
-      setProduct(await readAsAttachment(file));
+      const att = await attachmentFromUrl(g.src, g.label);
+      setPicked((prev) =>
+        prev.some((p) => p.key === g.id) || prev.length >= MAX_GARMENTS
+          ? prev
+          : [...prev, { key: g.id, att }],
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function uploadGarment(file: File) {
+    if (picked.length >= MAX_GARMENTS) return;
+    try {
+      const att = await readAsAttachment(file);
+      setPicked((prev) =>
+        prev.length >= MAX_GARMENTS
+          ? prev
+          : [...prev, { key: `upload:${att.id}`, att }],
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setErrorDetail(err instanceof Error ? (err.stack ?? null) : String(err));
@@ -405,14 +242,14 @@ export function LookStudio() {
   /** 방금 만든 결과를 인물 사진으로 되돌려, 그 위에 다른 옷을 이어서 입힌다 */
   function continueFrom(img: ResultImage) {
     setPerson(attachmentFromBase64(img.data, img.mimeType, "직전 결과.png"));
-    setProduct(null);
+    setPicked([]);
     setResults([]);
     setError(null);
     composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function submit() {
-    if (!person || !product || busy) return;
+    if (!person || picked.length < 1 || busy) return;
     setError(null);
     setElapsed(0);
     setBusy(true);
@@ -424,7 +261,10 @@ export function LookStudio() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           person: { data: person.data, mimeType: person.mimeType },
-          products: [{ data: product.data, mimeType: product.mimeType }],
+          products: picked.map((p) => ({
+            data: p.att.data,
+            mimeType: p.att.mimeType,
+          })),
         }),
       });
 
@@ -453,7 +293,7 @@ export function LookStudio() {
           <span className="c">Model — virtual-try-on-001</span>
         </div>
         <h1>Look Studio</h1>
-        <p>샘플 인물이나 즉석 촬영 사진에 원하는 의상을 입혀보세요</p>
+        <p>샘플 인물이나 내 사진에 원하는 의상을 입혀보세요</p>
       </header>
 
       {health && !health.ready && (
@@ -497,7 +337,11 @@ export function LookStudio() {
                 >
                   ⬇ 내 PC에 다운로드
                 </a>
-                <DownloadQr url={img.downloadUrl} />
+                <DownloadQr
+                  url={img.downloadUrl}
+                  error={img.downloadError}
+                  context="02 Look Studio · QR"
+                />
               </div>
             </article>
           ))}
@@ -512,18 +356,23 @@ export function LookStudio() {
             onClear={() => setPerson(null)}
             disabled={busy}
           />
-          <Slot
-            label="의상"
-            hint="의상 사진 올리기"
-            value={product}
-            onPick={(f) => void pickProduct(f)}
-            onClear={() => setProduct(null)}
+          <span className="slot-plus" aria-hidden="true">+</span>
+          <ChosenGarments
+            picked={picked}
+            onRemove={removeGarment}
             disabled={busy}
           />
         </div>
 
+        <GarmentPicker
+          selectedKeys={selectedKeys}
+          full={full}
+          onToggle={(g) => void toggleGarment(g)}
+          onUpload={(f) => void uploadGarment(f)}
+          disabled={busy}
+        />
+
         <div className="controls">
-          {/* <span className="cost">단가 확인 전</span> */}
           <button
             type="button"
             className="primary"
