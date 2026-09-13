@@ -164,6 +164,20 @@ export class PcmPlayer {
     return Math.max(0, (this.cursor - this.ctx.currentTime) * 1000);
   }
 
+  /** 현재 재생 시각(초, AudioContext 기준). 자막을 소리에 맞춰 늦출 때 쓴다 */
+  now(): number {
+    return this.ctx?.currentTime ?? 0;
+  }
+
+  /**
+   * 지금까지 예약된 소리가 전부 끝나는 시각(초, AudioContext 기준).
+   * 방금 도착한 자막 조각이 담당하는 소리의 끝이기도 하다 — 다음 조각은 여기서 시작한다.
+   */
+  endTime(): number {
+    if (!this.ctx) return 0;
+    return Math.max(this.ctx.currentTime, this.cursor);
+  }
+
   /** 사용자가 끼어들었을 때 — 예약된 것까지 전부 버린다 */
   flush(): void {
     for (const source of this.playing) {

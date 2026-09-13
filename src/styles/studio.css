@@ -861,6 +861,12 @@ textarea:focus-visible {
   padding: 0.15rem 0.55rem;
 }
 
+.voice-cam-badge.pending {
+  color: var(--text-h);
+  background: color-mix(in srgb, var(--ink) 70%, transparent);
+  border: 1px solid var(--accent-border);
+}
+
 .chat-row {
   display: flex;
   gap: 0.5rem;
@@ -935,6 +941,24 @@ textarea:focus-visible {
   animation: pulse 1.8s ease-in-out infinite;
 }
 
+/* 손님 목소리를 잡고 있는 중 — 서버의 voiceActivity 로만 켜진다 (마이크가 살아있다는 증거) */
+.mic.hearing .mic-button {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  animation-duration: 0.9s;
+}
+
+/* 관상가가 말하는 중 — 이때 손님 마이크는 닫혀 있다 */
+.mic.speaking .mic-button {
+  animation: none;
+  opacity: 0.72;
+}
+
+.mic.connecting .mic-button {
+  display: grid;
+  place-items: center;
+}
+
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--accent-bg); }
   50% { box-shadow: 0 0 0 14px transparent; }
@@ -974,6 +998,12 @@ textarea:focus-visible {
 
 .transcript .line.model {
   color: var(--text-h);
+}
+
+/* 아직 확정되지 않은 자막 — 말하는 대로 뜨고, 확정되면 위 줄로 대체된다 */
+.transcript .line.interim {
+  opacity: 0.5;
+  font-style: italic;
 }
 
 .transcript .who {
