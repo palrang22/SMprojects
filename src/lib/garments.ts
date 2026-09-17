@@ -36,6 +36,7 @@ export const GARMENT_SECTIONS: GarmentSection[] = [
       { id: "concert-3", label: "무대의상 3", src: `${dir}/concert-girls/concert-3.webp` },
       { id: "concert-4", label: "무대의상 4", src: `${dir}/concert-girls/concert-4.webp` },
       { id: "concert-5", label: "무대의상 5", src: `${dir}/concert-girls/concert-5.webp` },
+      { id: "g-concert-6", label: "무대의상 6", src: `${dir}/concert-girls/g-concert-6.webp` },
     ],
   },
   {
@@ -44,6 +45,10 @@ export const GARMENT_SECTIONS: GarmentSection[] = [
     items: [
       { id: "b-concert-1", label: "무대의상 1", src: `${dir}/concert-boys/b-concert-1.webp` },
       { id: "b-concert-2", label: "무대의상 2", src: `${dir}/concert-boys/b-concert-2.webp` },
+      { id: "b-concert-3", label: "무대의상 3", src: `${dir}/concert-boys/b-concert-3.webp` },
+      { id: "b-concert-4", label: "무대의상 4", src: `${dir}/concert-boys/b-concert-4.webp` },
+      { id: "b-concert-5", label: "무대의상 5", src: `${dir}/concert-boys/b-concert-5.webp` },
+      { id: "b-concert-6", label: "무대의상 6", src: `${dir}/concert-boys/b-concert-6.webp` },
     ],
   },
   {

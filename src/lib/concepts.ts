@@ -79,17 +79,19 @@ No on-screen text, captions, subtitles or watermarks.`,
     id: "awards",
     label: "콘서트",
     icon: "🎤",
-    // 입력: REF_0=인물 뿐 (옷·배경 파일 아직 없음).
-    // concert/ 에 옷·배경을 추가하면 REF_1=옷, REF_2~=배경 으로 바인딩을 늘릴 것.
-    prompt: `Vertical 9:16, about 10 seconds. Use <IMAGE_REF_0> as the person's exact face and identity — a reference, not a literal first frame.
+    // 입력: REF_0=인물, REF_1=옷(b/g-motion-concert 중 택1), REF_2=concert-hall
+    prompt: `Vertical 9:16, about 10 seconds. Use every provided image as a reference only, never as a literal first frame. <IMAGE_REF_0> = the person's exact face and identity. <IMAGE_REF_1> = the outfit they wear. <IMAGE_REF_2> = the concert hall.
 
-In one continuous slow-motion shot, the person from <IMAGE_REF_0> stands center stage at a packed arena concert, wearing a sparkling custom stage outfit. They walk to the front of the stage, smile wide and wave both arms to the roaring crowd, then press one hand to their chest in thanks. Giant LED screens behind them carry a live close-up of their face. Sweeping spotlights, lasers and a sea of audience phone-flashes fill the arena; confetti drifts through the light beams. A slow crane move pushes in toward them.
+In one continuous slow-motion shot, the person from <IMAGE_REF_0> stands center stage at a packed arena concert modelled on <IMAGE_REF_2>, wearing the outfit from <IMAGE_REF_1>. They walk to the front of the stage, smile wide and wave both arms to the roaring crowd, then press one hand to their chest in thanks. Giant LED screens behind them carry a live close-up of their face. Sweeping spotlights, lasers and a sea of audience phone-flashes fill the arena; confetti drifts through the light beams. A slow crane move pushes in toward them.
 
 Keep the face and hairstyle from <IMAGE_REF_0> identical in every frame. Photorealistic, saturated concert color, volumetric haze, shallow depth of field.
 Audio: a massive crowd cheering and chanting, a driving live band, applause swelling. No dialogue or voiceover.
 No on-screen text, captions, subtitles or watermarks.`,
     refImages: [`${dir}/concert/concert-hall.webp`],
-    outfits: [],
+    outfits: [
+      `${dir}/concert/b-motion-concert.webp`,
+      `${dir}/concert/g-motion-concert.webp`,
+    ],
     aspectRatio: "9:16",
   },
   {
